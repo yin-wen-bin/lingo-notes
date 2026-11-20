@@ -1,0 +1,18 @@
+:root { color: #243b32; background: #fbfdf6; font: 16px/1.8 system-ui, "Microsoft YaHei", sans-serif; color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin: 0; overflow-wrap: anywhere; }
+header, main, footer { width: min(100%, 780px); margin: 0 auto; padding: 24px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 650; text-decoration: none; }
+.brand img { flex: 0 0 32px; }
+main { background: #fff; border: 1px solid #e1e8de; border-radius: 20px; }
+h1 { margin: 0 0 10px; font-size: 28px; line-height: 1.4; }
+h2 { margin: 28px 0 8px; font-size: 20px; line-height: 1.5; }
+p { margin: 10px 0 16px; }
+li { margin: 10px 0; }
+ul, ol { padding-left: 24px; }
+a { color: #25573f; text-underline-offset: 3px; }
+a:focus-visible { outline: 2px solid #25573f; outline-offset: 4px; }
+.muted, .small { color: #63766b; font-size: 14px; }
+footer { display: flex; flex-wrap: wrap; gap: 24px; font-size: 14px; }
+@media (max-width: 600px) { header, main, footer { padding: 20px 16px; } main { border-radius: 0; border-left: 0; border-right: 0; } header { gap: 10px; } header nav { font-size: 14px; } }

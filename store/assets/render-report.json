@@ -1,0 +1,73 @@
+{
+  "synthetic": true,
+  "productionRequests": 0,
+  "modelCalls": 0,
+  "source": "extension/panel.html + panel.css + bundled panel.ts",
+  "sourceHashes": {
+    "extension/panel.html": "fd4d8e9dedae42c4c48eff4725500b3868640faadf96d043d048d464c0b1803e",
+    "extension/panel.css": "d9c5c5a619999f6c4bd0be4fea3a7bb6279a098771320fa85e68c067153adc3e",
+    "bundled-panel.js": "7fbcefde93cdc8e638710aeb4d7c5af8406cd6b2c93640fa7ee5406e24a96c2b"
+  },
+  "screenshots": [
+    {
+      "file": "screenshots/01-english-notes.png",
+      "width": 1280,
+      "height": 800,
+      "format": "PNG RGB 8-bit, no alpha",
+      "bytes": 166980,
+      "sha256": "7435eb26dd7a9c2e799a29cd250a9ceafc66ba08016348a0b3672f72a6b86390",
+      "view": "english",
+      "horizontalOverflow": false
+    },
+    {
+      "file": "screenshots/02-japanese-notes.png",
+      "width": 1280,
+      "height": 800,
+      "format": "PNG RGB 8-bit, no alpha",
+      "bytes": 151741,
+      "sha256": "47271b13bdce25a6fb58ec1b986006463207c9d87192368d10d731004372da6f",
+      "view": "japanese",
+      "horizontalOverflow": false
+    },
+    {
+      "file": "screenshots/03-history.png",
+      "width": 1280,
+      "height": 800,
+      "format": "PNG RGB 8-bit, no alpha",
+      "bytes": 134969,
+      "sha256": "68946da6aec6324d10e9179551e34a22f6d5e915b8337e2c92fcbfa6b2d4f615",
+      "view": "history",
+      "horizontalOverflow": false
+    },
+    {
+      "file": "screenshots/04-image-confirmation.png",
+      "width": 1280,
+      "height": 800,
+      "format": "PNG RGB 8-bit, no alpha",
+      "bytes": 148042,
+      "sha256": "b0be70057742f882f5801dfb2467ba1328e5e6d3adf7868eed4bafbf8d214161",
+      "view": "image",
+      "horizontalOverflow": false
+    }
+  ],
+  "blockedRequests": [],
+  "browserErrors": [],
+  "apiActions": [
+    "records.get",
+    "settings.get",
+    "records.get",
+    "settings.get",
+    "records.get",
+    "settings.get",
+    "settings.get",
+    "records.history",
+    "settings.get"
+  ],
+  "icon": {
+    "file": "icon-128.png",
+    "width": 128,
+    "height": 128,
+    "sha256": "571984889f8ed06b9f242b106deed8a2108a71bfa89d3f62781196ec54999be6",
+    "unchangedFromExtension": true
+  }
+}

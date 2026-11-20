@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lingo Notes</title><link rel="stylesheet" href="assets/typography/typography.css"><link rel="stylesheet" href="panel.css"></head>
+<body>
+<header><div class="topline"><p class="tagline">随手记，然后让AI帮你整理和复习</p><nav aria-label="主导航"><button id="historyTab" class="quiet">历史</button><details id="menu"><summary aria-label="更多">⋯</summary><div class="menu"><button id="newNote">新建笔记</button><button id="filePick">选择图片</button><button id="editRecord" hidden>修订或重试</button><button id="retryOcr" hidden>重新识别</button><button id="settingsTab">连接与设置</button></div></details></nav></div></header>
+<main><div id="notice" role="status" aria-live="polite" hidden></div>
+<section id="learnView">
+  <section id="composer">
+    <label class="sr-only" for="sourceText">需要学习的文字</label><textarea id="sourceText" rows="4" maxlength="12000" placeholder="划词后右键，或在这里输入…"></textarea>
+    <div class="actions"><button id="send" class="primary">讲解</button><button id="capture">截图</button></div>
+    <details id="draftDetails" class="details"><summary>材料详情</summary><p id="contextStatus" class="muted"></p><p id="draftContext" class="context"></p><a id="draftSource" target="_blank" rel="noopener noreferrer" hidden></a></details>
+  </section>
+  <section id="imageStage" hidden><div class="section-title"><h2>确认截图</h2><button id="cancelImage" class="quiet">取消</button></div><img id="cropPreview" alt="即将发送和保存的图片"><p class="muted">确认后发送给 DeepSeek 识别，并将截图保存到你的私有云端。</p><div class="actions"><button id="recognize" class="primary">确认识别</button><button id="recapture">重新框选</button></div></section>
+  <section id="recordSection" hidden>
+    <div class="section-title"><h2 id="recordHeading"></h2><button id="cancelJob" class="quiet" hidden>取消</button></div>
+    <p id="recordError" class="error" hidden></p>
+    <div id="reviewSection" hidden><label for="corrected">检查识别文字</label><textarea id="corrected" rows="5" maxlength="12000"></textarea><button id="confirmText" class="primary">确认讲解</button></div>
+    <div id="retrySection" hidden><label for="retryText">修订材料</label><textarea id="retryText" rows="5" maxlength="12000"></textarea><p class="muted">重新讲解可能再次产生 API 费用；保留原日期和上次完整讲解，成功后更新。</p><button id="retryConfirm" class="primary">确认重新讲解</button></div>
+    <div id="lesson"></div>
+    <details id="recordDetails" class="details"><summary>材料详情</summary><p id="recordOriginal" class="original"></p><p id="recordContext" class="context"></p><a id="recordSource" target="_blank" rel="noopener noreferrer" hidden></a><p id="recordMeta" class="muted"></p><p id="imageState" class="muted" hidden></p><button id="openImage" class="image-button" hidden><img id="recordImage" alt="已保存截图，点击放大"></button></details>
+    <button id="newDraft" class="new-note">＋ 新建笔记</button>
+  </section>
+</section>
+<section id="historyView" hidden><div class="section-title"><h2>历史</h2><button id="backFromHistory" class="quiet back-button">返回</button></div><div class="search"><input id="search" type="search" placeholder="搜索笔记" aria-label="搜索历史"><button id="searchButton">查询</button></div><div id="historyList"></div><button id="more" hidden>加载更多</button></section>
+<section id="settingsView" hidden>
+  <div class="section-title"><h2>连接与设置</h2><button id="backFromSettings" class="quiet back-button">返回</button></div>
+  <div id="connectionState" role="status">正在检查登录状态…</div>
+  <section id="loginFields" class="settings-card">
+    <label for="email">已开通的邮箱</label><input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+    <label for="password">密码</label><input id="password" type="password" autocomplete="current-password" maxlength="1024">
+    <button id="signIn" type="button" class="primary">登录</button>
+    <p class="muted">首次使用请打开管理员提供的学习中心一次性链接，设置密码后再回来登录。</p>
+  </section>
+  <section id="keyFields" class="settings-card" hidden>
+    <h3>DeepSeek API</h3><p id="keyState" class="muted"></p>
+    <label for="apiKey">填写或更新 API Key</label><input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="输入后加密保存">
+    <div class="actions"><button id="saveKey" class="primary">保存 Key</button><button id="deleteKey">移除</button></div>
+    <p class="muted">Key 在云端加密保存，不会回显。模型费用由 DeepSeek 直接收取。</p>
+  </section>
+  <section id="modeFields" class="settings-card" hidden>
+    <h3>讲解模式</h3>
+    <div class="actions" role="group" aria-label="讲解模式"><button id="modeFast" type="button" class="primary" style="flex:1" aria-pressed="true">快速（默认）</button><button id="modeThinking" type="button" style="flex:1" aria-pressed="false">思考</button></div>
+    <p id="modeState" class="muted">当前为快速模式。</p>
+    <p class="muted">快速模式通常等待更短、用量更少；思考模式通常需要更久、消耗更多额度，也可能出错。对新讲解生效，截图识别始终快速。</p>
+  </section>
+  <section id="fontFields" class="settings-card" hidden>
+    <h3>字体方案</h3>
+    <label for="fontTheme">字体组合</label><select id="fontTheme" aria-describedby="fontDescription fontState"><option value="handwritten">手写感</option><option value="bookish">书卷感</option><option value="clean" selected>清爽自然</option></select>
+    <p id="fontDescription" class="muted"></p>
+    <div class="font-preview" aria-label="字体预览"><p class="ui-text" lang="zh-CN">把遇见的文字，慢慢读懂。</p><p class="learning-text" lang="en">A little discovery, every day.</p><p class="learning-text" lang="ja">言葉との出会いを、少しずつ。</p></div>
+    <p id="fontState" class="muted" role="status">标题、按钮和学习内容一起切换，并在登录后同步。</p>
+  </section>
+  <div class="actions"><button id="diagnose">检查连接</button><button id="signOut" hidden>退出登录</button></div>
+  <p class="muted">笔记与确认截图保存在你的私有云端。查询和历史需要网络；退出登录会清除本设备草稿，不删除云端笔记。</p>
+  <footer class="support-links" aria-label="隐私与支持"><a href="https://lingo-notes.pages.dev/privacy" target="_blank" rel="noopener noreferrer">隐私说明</a><a href="https://lingo-notes.pages.dev/support" target="_blank" rel="noopener noreferrer">使用支持</a></footer>
+</section>
+</main>
+<input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+<dialog id="imageDialog"><button id="closeImage" class="quiet">关闭</button><img id="fullImage" alt="已保存截图"></dialog>
+<script type="module" src="panel.js"></script></body></html>

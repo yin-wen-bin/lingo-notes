@@ -1,0 +1,10 @@
+import type { ReviewBatch, ReviewCard } from './types';
+export function safeExternalUrl(value: unknown): string | null;
+export function parseRoute(value: string): { tab: 'today' | 'history' | 'settings'; recordId: string | null; batchId: string | null };
+export function readSetupLink(value: string): { present: boolean; token: string | null };
+export function reviewCards(batch: ReviewBatch | null): ReviewCard[];
+export function languageLabel(language: string): string;
+export function speechContent(text: string, reading: string, language: string): { lang: string; text: string };
+export function userError(error: unknown): string;
+export function vapidBytes(value: string): Uint8Array<ArrayBuffer>;
+export function pushSubscriptionError(error: unknown): string | null;

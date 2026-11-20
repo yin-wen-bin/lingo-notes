@@ -1,0 +1,41 @@
+{
+  "purpose": "Human language-quality regression rubric. JSON/schema success does not satisfy these criteria. Never inject the rubric answers into model prompts.",
+  "prior_evidence": ".cache/quality-synthetic.json; run 2ee5a08a-0e3f-4372-85c1-7026b5bf4220; lingo-cloud-2",
+  "cases": [
+    {
+      "id": "ja-word-01",
+      "text": "勉強",
+      "context": "「日本語の勉強を続けています。」という日本語の文。",
+      "previous_failure": "Added context-only grammar and falsely stated that 続けています follows 名词+の.",
+      "review_criteria": ["Only the selected word is taught; grammar is empty.", "Reading べんきょう; Japanese noun / suru-verb usage is described accurately.", "Examples and Chinese translations convey study/learning without adding invented conjugation rules."]
+    },
+    {
+      "id": "ja-word-02",
+      "text": "約束",
+      "context": "「友達との約束を守ります。」という日本語の文。",
+      "previous_failure": "Called a Japanese noun countable and added grammar from unselected context.",
+      "review_criteria": ["Only the selected word is taught; grammar is empty.", "Reading やくそく; noun / suru usage is classified in Japanese terms without English countability labels.", "Examples distinguish a promise/arrangement and faithfully translate lateness rather than implying a wholly missed meeting."]
+    },
+    {
+      "id": "ja-sentence-02",
+      "text": "雨が降りそうなので、傘を持っていきます。",
+      "context": "",
+      "previous_failure": "Misidentified appearance そう as dictionary-form + そう despite using 降りそう.",
+      "review_criteria": ["If teaching そう: show 降る → 降ります → 降り + そう; explain appearance based on signs.", "Do not label 降り as dictionary form or conflate it with hearsay 降るそうだ.", "If contrasting hearsay, state its different plain-form connection correctly; summary/title/explanation must agree.", "Every example illustrates the selected form and translations preserve the intended inference."]
+    },
+    {
+      "id": "ja-sentence-03",
+      "text": "もっと早く知っていれば、手伝えたのに。",
+      "context": "",
+      "previous_failure": "Risk of generalizing this counterfactual context to every use of ていれば or のに.",
+      "review_criteria": ["Explain the sentence's unrealized opportunity and regret without claiming every ていれば is counterfactual.", "Morphology is correct: 知る → 知っている → 知っていれば; 手伝う → 手伝える → 手伝えた.", "Do not falsely restrict のに to potential past forms.", "Examples and translations retain the conditional/counterfactual distinction."]
+    },
+    {
+      "id": "ja-sentence-05",
+      "text": "先生にレポートを直していただきました。",
+      "context": "",
+      "previous_failure": "Needs explicit humble/benefactive roles; receiving a favor must not universally entail an explicit prior request.",
+      "review_criteria": ["Teacher performs the correction; speaker benefits; いただく is humble receiving corresponding to もらう.", "Show correct morphology such as 直す → 直して, いただく → いただきます → いただきました.", "Do not classify いただく as honorific action by the teacher or insist the speaker necessarily asked first.", "Examples have natural participant roles and faithful Chinese translations."]
+    }
+  ]
+}

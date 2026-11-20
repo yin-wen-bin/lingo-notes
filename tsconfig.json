@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "chrome",
+      "node",
+      "vite/client"
+    ],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "extension/**/*.ts",
+    "shared/**/*.ts",
+    "pwa/src/**/*.ts",
+    "pwa/src/**/*.tsx",
+    "pwa/vite.config.ts"
+  ]
+}

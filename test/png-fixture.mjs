@@ -1,0 +1,4 @@
+import {deflateSync} from 'node:zlib';
+import {randomBytes} from 'node:crypto';
+function chunk(type,data){const body=Buffer.concat([Buffer.from(type),data]);let crc=0xffffffff;for(const b of body){crc^=b;for(let i=0;i<8;i++)crc=(crc&1)?0xedb88320^(crc>>>1):crc>>>1;}const result=Buffer.alloc(body.length+8);result.writeUInt32BE(data.length);body.copy(result,4);result.writeUInt32BE((crc^0xffffffff)>>>0,result.length-4);return result;}
+export function png(width=16,height=16,noise=false){const header=Buffer.alloc(13);header.writeUInt32BE(width);header.writeUInt32BE(height,4);header[8]=8;header[9]=6;const scan=Buffer.alloc((width*4+1)*height,255);for(let y=0;y<height;y++){const start=y*(width*4+1);scan[start]=0;if(noise)randomBytes(width*4).copy(scan,start+1);}return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',header),chunk('IDAT',deflateSync(scan)),chunk('IEND',Buffer.alloc(0))]);}

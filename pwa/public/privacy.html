@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Lingo Notes 隐私说明：学习材料、账号、API Key、通知及删除方式。">
+  <meta name="referrer" content="no-referrer">
+  <title>隐私说明 · Lingo Notes</title>
+  <link rel="stylesheet" href="/info.css">
+  <link rel="icon" href="/icons/extension-brand-128.png" type="image/png">
+</head>
+<body>
+  <header><a class="brand" href="https://lingo-notes.pages.dev/"><img src="/icons/extension-brand-128.png" width="32" height="32" alt="">Lingo Notes</a><nav aria-label="帮助导航"><a href="https://lingo-notes.pages.dev/support">使用支持</a></nav></header>
+  <main>
+    <h1>隐私说明</h1>
+    <p class="muted">更新于 2026 年 11 月 20 日 · 适用于当前邀请制 Chrome 扩展和手机学习中心</p>
+    <p>Lingo Notes 用你确认提交的材料生成讲解、保存笔记和安排复习。本页说明当前版本实际处理的数据；发送前请检查材料详情和截图，避免上传不希望交给云端处理的内容。</p>
+
+    <h2>处理哪些数据</h2>
+    <ul>
+      <li><strong>账号与登录：</strong>邮箱、账号标识和登录会话。密码交由 Supabase Auth 验证；应用不会把输入的明文密码存入本机登录缓存。扩展和网页保存会话令牌，让你保持登录。</li>
+      <li><strong>学习材料：</strong>提交的文字、识别及校正文字、最多 1,500 字符的自动提取上下文、生成的讲解和例句。可获取时会附带页面标题和来源 URL；URL 会移除用户名、密码、查询参数和片段，但路径或标题仍可能包含个人信息。</li>
+      <li><strong>截图：</strong>你确认的框选区域或选择的图片，用于识别和历史回看，并保存在 Supabase 私有 Storage。确认发送前的选图操作不会把图片上传到模型服务。</li>
+      <li><strong>API Key：</strong>你填写的 DeepSeek Key 通过已认证的 Supabase 后端存入 Vault 加密保存，授权后端在请求模型时解密使用。保存后界面仅显示状态和末四位；移除托管 Key 不会撤销厂商账号中的原 Key。</li>
+      <li><strong>复习与运行信息：</strong>字体和讲解模式设置、复习批次与打开时间、通知订阅地址及投递密钥、通知状态、请求标识、时间、错误代码、耗时和模型用量，用于运行服务、去重及排障。</li>
+    </ul>
+
+    <h2>哪些服务接收数据</h2>
+    <ul>
+      <li><strong>Supabase：</strong>提供身份验证、数据库、截图存储、密钥托管和后端执行，处理账号、学习材料、结果及运行状态。</li>
+      <li><strong>DeepSeek：</strong>使用你的 Key 接收讲解所需的文字、上下文或确认图片，并返回识别、讲解和用量。每日精选复用已保存内容，不额外请求模型。</li>
+      <li><strong>Cloudflare Pages：</strong>托管手机网页和公共资源。托管、认证和 API 基础设施可能处理 IP 地址、浏览器信息、访问时间等必要的网络请求信息。</li>
+      <li><strong>浏览器推送服务：</strong>开启通知后，由浏览器对应的服务（例如 Apple）参与投递。通知包含通用提醒和复习批次链接，不包含学习正文；打开后需登录读取卡片。</li>
+      <li><strong>设备或浏览器语音服务：</strong>点击发音时，单词或例句交给系统语音合成。部分语音可能在线处理，不能保证所有发音均离线。</li>
+    </ul>
+    <p>服务可能在你所在地区以外处理数据，留存规则由各服务的适用条款约束。Lingo Notes 不承诺模型供应商不留存输入，也不提供端到端加密：授权后端需要读取材料才能提供讲解与复习。</p>
+    <p class="small">供应商资料：<a href="https://supabase.com/privacy" rel="noreferrer">Supabase 隐私说明</a>、<a href="https://cdn.deepseek.com/policies/en-US/deepseek-open-platform-terms-of-service.html" rel="noreferrer">DeepSeek 开放平台条款</a>、<a href="https://www.cloudflare.com/privacypolicy/" rel="noreferrer">Cloudflare 隐私说明</a>。语音和推送还适用你所用设备及浏览器服务的规则。</p>
+
+    <h2>本机保存与访问控制</h2>
+    <p>扩展使用浏览器存储保存会话、当前草稿和恢复状态；网页保存登录会话并缓存公开应用资源和字体文件，字体方案作为账号设置保存在云端。网页的离线缓存不保存学习 API 响应或私有截图，历史查询仍需要网络。其他账号不能通过正常应用接口读取你的记录；运维权限由服务管理员管理。</p>
+    <p>当前发布代码未接入广告 SDK、跨站行为分析或数据售卖功能。技术耗时上报不含学习正文或 API Key；服务基础设施仍可能产生必要的安全和请求日志。</p>
+
+    <h2>查看、关闭和删除</h2>
+    <ul>
+      <li><strong>单条记录：</strong>可在历史中删除。正文从正常查询和后续复习中移除，保留最小删除标记；截图由后台异步清理，失败时稍后重试。</li>
+      <li><strong>通知与 Key：</strong>可在设置中暂停复习、关闭通知或移除托管 Key。已发出的通知不能保证撤回。退出登录或卸载扩展不会删除云端笔记。</li>
+      <li><strong>整个账号：</strong>当前没有自助注销按钮。请发邮件至 <a href="mailto:wenbinyin@gmail.com">wenbinyin@gmail.com</a>，向管理员申请删除账号、记录、截图、复习信息和托管 Key。管理员需先核对账号归属，再确认处理范围和结果。</li>
+    </ul>
+    <p>记录在你删除前用于历史和复习；必要的请求状态、删除标记可能继续保留。单条删除不会追溯改写已有备份，也不代表已投递通知或供应商已接收的材料立即全部销毁。账号删除时可一并询问备份的处理范围和期限。</p>
+
+    <h2>联系与变更</h2>
+    <p>本服务由 Lingo Notes 项目维护者管理。隐私、更正或删除请求请联系 <a href="mailto:wenbinyin@gmail.com">wenbinyin@gmail.com</a>。请勿在公开 GitHub Issue 中填写个人邮箱、Key、密码、一次性设置链接或私人学习内容。操作帮助见<a href="https://lingo-notes.pages.dev/support">使用支持</a>。数据处理方式变化时，我们会更新本页日期及说明。</p>
+  </main>
+  <footer><a href="https://lingo-notes.pages.dev/">返回学习中心</a><a href="https://lingo-notes.pages.dev/support">使用支持</a></footer>
+</body>
+</html>
