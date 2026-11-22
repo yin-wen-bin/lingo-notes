@@ -73,6 +73,7 @@ test('PWA browser flow: password login, one-time setup, batch route, audio, hist
     actions.push(body);
     if (body.action === 'settings.get' && staleSettings) { staleSettings = false; await route.fulfill({ status: 400, headers, body: JSON.stringify({ ok: false, error: 'SESSION_CHANGED' }) }); return; }
     let result = {};
+    if (body.action === 'review.cards') result = { cards: [] };
     if (body.action === 'review.get' || body.action === 'review.today') result = { batch: { id: 'batch-one', local_date: '2026-11-19', cards: [{ id: 'card-one', record_id: 'record-one', term: 'learn', reading: '/lɜːn/', language: 'en', meaning: '学习；学会', example: examples[0], local_date: '2026-11-18' }] } };
     if (body.action === 'records.history') result = { items: records.filter(item => item.text.includes(body.params.query || '')), has_more: false };
     if (body.action === 'records.get') {
@@ -171,6 +172,7 @@ test('PWA browser flow: password login, one-time setup, batch route, audio, hist
   assert.equal(await page.getByRole('heading', { name: '字体方案', exact: true }).count(), 1);
   await page.waitForFunction(() => document.querySelector('#font-theme')?.disabled === false);
   assert.equal(await fontSelect.inputValue(), 'clean');
+  assert.deepEqual(await fontSelect.locator('option').evaluateAll(options=>options.map(option=>option.value)), ['handwritten','bookish','clean','refined']);
   assert.equal(actions.filter(item => item.action === 'settings.update' && item.params.font_theme).length, 0, 'reading a default font never writes it to the account');
   const heldRead = new Promise(resolve => { settingsHeld = resolve; }); holdNextSettings = true;
   await page.evaluate(() => window.dispatchEvent(new Event('focus'))); await heldRead;
@@ -204,9 +206,20 @@ test('PWA browser flow: password login, one-time setup, batch route, audio, hist
   await page.reload();
   await page.getByRole('button', { name: '开启通知', exact: true }).waitFor();
   await page.waitForFunction(() => document.documentElement.dataset.fontTheme === 'bookish' && document.querySelector('#font-theme')?.value === 'bookish');
+  await fontSelect.selectOption('refined');
+  await page.waitForFunction(() => document.querySelector('#font-theme')?.value === 'refined' && !document.querySelector('#font-theme')?.disabled);
+  assert.match(await page.getByRole('heading', { name: '设置', exact: true }).evaluate(element => getComputedStyle(element).fontFamily), /Manrope/);
+  assert.match(await page.locator('.font-preview [lang="en"]').evaluate(element => getComputedStyle(element).fontFamily), /Inter/);
+  await page.reload();await page.getByRole('button', { name: '开启通知', exact: true }).waitFor();
+  await page.waitForFunction(() => document.documentElement.dataset.fontTheme === 'refined' && document.querySelector('#font-theme')?.value === 'refined');
+  const defaultReadStart = actions.length; delete settings.font_theme;
+  await page.reload();await page.getByRole('button', { name: '开启通知', exact: true }).waitFor();
+  await page.waitForFunction(() => document.documentElement.dataset.fontTheme === 'refined' && document.querySelector('#font-theme')?.disabled === false);
+  assert.equal(actions.slice(defaultReadStart).some(item => item.action === 'settings.update' && item.params.font_theme), false, 'a missing preference uses refined without writing on load');
+  settings.font_theme = 'refined';
   if (process.env.LINGO_FONT_SCREENSHOTS === '1') {
-    const screenshotDirectory = path.resolve('.cache/font-presets-ui'); await mkdir(screenshotDirectory, { recursive: true });
-    for (const theme of ['handwritten', 'bookish', 'clean']) {
+    const screenshotDirectory = path.resolve('.cache/refined-ui'); await mkdir(screenshotDirectory, { recursive: true });
+    for (const theme of ['handwritten', 'bookish', 'clean', 'refined']) {
       await fontSelect.selectOption(theme);
       await page.waitForFunction(value => document.querySelector('#font-theme')?.value === value && !document.querySelector('#font-theme')?.disabled, theme);
       for (const width of [320, 390]) {
@@ -275,7 +288,7 @@ test('PWA browser flow: password login, one-time setup, batch route, audio, hist
   await page.getByRole('heading', { name: '登录 Lingo Notes', exact: true }).waitFor();
   assert.ok((await page.evaluate(() => window.testSpeech)).filter(value => value === 'stop').length > stops, 'external logout stops previous account audio');
   assert.equal(await page.locator('.app-main').count(), 0);
-  assert.equal(await page.evaluate(() => document.documentElement.dataset.fontTheme), 'clean', 'external logout clears the old account font preference');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.fontTheme), 'refined', 'external logout clears the old account font preference');
   const beforeSetupActions = actions.length;
   const setupToken = 'a'.repeat(64);
   await page.goto(`http://127.0.0.1:${server.address().port}/?batch=batch-one#token_hash=${setupToken}&token_type=recovery`);

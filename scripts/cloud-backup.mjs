@@ -5,7 +5,8 @@ import {fileURLToPath} from 'node:url';
 import {ROOT,PROJECT_REF} from './cloud-config.mjs';
 
 export const BACKUP_FORMAT='lingo-cloud-backup/1';
-export const TABLES=['lingo_records','lingo_requests','lingo_settings','lingo_cards','lingo_review_batches','lingo_review_items','lingo_deliveries'];
+export const TABLES=['lingo_records','lingo_requests','lingo_settings','lingo_cards','lingo_review_batches','lingo_review_items','lingo_deliveries','lingo_review_points'];
+const LEGACY_TABLES=TABLES.filter(table=>table!=='lingo_review_points');
 const MAX_JSON=64*1024*1024,MAX_IMAGE=4*1024*1024;
 const MAGIC=Buffer.from('LNENC001');
 const ID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
@@ -47,9 +48,10 @@ export function privateFile(root,relative,maxBytes){
 }
 export function validateSnapshot(snapshot){
   if(snapshot?.format!=='lingo-cloud/1'||!snapshot.tables||typeof snapshot.captured_at!=='string'||!Number.isFinite(Date.parse(snapshot.captured_at)))fail('INVALID_BACKUP_FORMAT');
-  if(JSON.stringify(Object.keys(snapshot.tables).sort())!==JSON.stringify([...TABLES].sort()))fail('INVALID_BACKUP_TABLES');
+  const names=Object.keys(snapshot.tables).sort();
+  if(![TABLES,LEGACY_TABLES].some(tables=>JSON.stringify(names)===JSON.stringify([...tables].sort())))fail('INVALID_BACKUP_TABLES');
   const owners=new Set(),images=[];
-  for(const table of TABLES){
+  for(const table of names){
     if(!Array.isArray(snapshot.tables[table]))fail('INVALID_BACKUP_TABLES');
     for(const row of snapshot.tables[table]){if(!ID.test(row.user_id))fail('INVALID_BACKUP_OWNER');owners.add(row.user_id);}
   }
@@ -97,7 +99,7 @@ export async function backupCloud({client,directory,passphrase:password,projectR
     }
     const manifest={format:BACKUP_FORMAT,backup_id:id,project_ref:projectRef,captured_at:snapshot.captured_at,complete:true,
       snapshot:{file:'snapshot.enc',sha256:hash(snapshotBytes),byte_size:snapshotBytes.length},images:files,
-      counts:Object.fromEntries(TABLES.map(t=>[t,snapshot.tables[t].length]))};
+      counts:Object.fromEntries(Object.keys(snapshot.tables).map(t=>[t,snapshot.tables[t].length]))};
     writeExclusive(join(output,'manifest.enc'),encryptObject(key,Buffer.from(JSON.stringify(manifest)),`${id}:manifest.enc`));
     const temp=join(output,'backup.complete.tmp');writeExclusive(temp,Buffer.from(JSON.stringify({...header,state:'complete'},null,2)));renameSync(temp,join(output,'backup.json'));
     return {complete:true,directory:output,records:snapshot.tables.lingo_records.length,images:files.length,captured_at:snapshot.captured_at};
@@ -118,7 +120,7 @@ export function loadBackup(directory,password){
     const snapshot=JSON.parse(bytes.toString('utf8')),{images,owners}=validateSnapshot(snapshot);
     if(images.length!==manifest.images.length||new Set(manifest.images.map(i=>i.file)).size!==images.length)fail('BACKUP_IMAGE_REFERENCE_MISMATCH');
     for(const image of images){const entry=manifest.images.find(i=>i.path===image.path);if(!entry||entry.sha256!==image.sha256||entry.byte_size!==image.byte_size||entry.mime_type!==image.mime_type)fail('BACKUP_IMAGE_REFERENCE_MISMATCH');}
-    for(const table of TABLES)if(manifest.counts?.[table]!==snapshot.tables[table].length)fail('BACKUP_COUNT_MISMATCH');
+    for(const table of Object.keys(snapshot.tables))if(manifest.counts?.[table]!==snapshot.tables[table].length)fail('BACKUP_COUNT_MISMATCH');
     return {key,manifest,snapshot,owners};
   }catch(error){key.fill(0);throw new Error(safeCode(error));}
 }

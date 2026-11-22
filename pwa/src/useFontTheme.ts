@@ -6,17 +6,17 @@ import type { Notice, Settings } from './types';
 // Keep confirmed preferences in this account's mounted view only. Old reads and
 // writes cannot change a newer selection or another account's document theme.
 export function useFontTheme(accountId: string, onError: (error: unknown) => void, notify: (notice: Notice) => void) {
-  const [theme, setTheme] = useState<FontTheme>('clean');
+  const [theme, setTheme] = useState<FontTheme>('refined');
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
-  const confirmed = useRef<FontTheme>('clean');
+  const confirmed = useRef<FontTheme>('refined');
   const version = useRef(0); const live = useRef(false); const saving = useRef(false);
   const display = useCallback((value: FontTheme) => { applyFontTheme(value); setTheme(value); }, []);
 
   useLayoutEffect(() => {
-    live.current = true; ++version.current; saving.current = false; confirmed.current = 'clean';
-    display('clean'); setBusy(false); setReady(false);
-    return () => { live.current = false; ++version.current; saving.current = false; applyFontTheme('clean'); };
+    live.current = true; ++version.current; saving.current = false; confirmed.current = 'refined';
+    display('refined'); setBusy(false); setReady(false);
+    return () => { live.current = false; ++version.current; saving.current = false; applyFontTheme('refined'); };
   }, [accountId, display]);
 
   const refresh = useCallback(async () => {

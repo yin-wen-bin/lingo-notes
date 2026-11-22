@@ -20,7 +20,7 @@ export async function restoreCloud({client,directory,passphrase}){
     const result=await checkedRpc(client,'lingo_restore_empty',{p_snapshot:loaded.snapshot});
     if(result?.restored!==true||result.record_count!==loaded.snapshot.tables.lingo_records.length)fail('RESTORE_RECEIPT_INVALID');
     const check=await checkedRpc(client,'lingo_backup_snapshot');
-    for(const table of TABLES)if(check.tables?.[table]?.length!==loaded.snapshot.tables[table].length)fail('RESTORE_READBACK_FAILED');
+    for(const table of TABLES)if(loaded.snapshot.tables[table]&&check.tables?.[table]?.length!==loaded.snapshot.tables[table].length)fail('RESTORE_READBACK_FAILED');
     const expected=loaded.snapshot.tables.lingo_records.map(r=>r.id).sort(),actual=check.tables.lingo_records.map(r=>r.id).sort();
     if(JSON.stringify(actual)!==JSON.stringify(expected)||check.tables.lingo_requests.some(r=>r.status==='processing')||check.tables.lingo_settings.some(r=>r.review_enabled||r.push_enabled||r.email_enabled)||check.tables.lingo_deliveries.some(r=>!['accepted','disabled'].includes(r.status)))fail('RESTORE_READBACK_FAILED');
     return {complete:true,records:expected.length,images:uploaded,review_enabled:false,keys_restored:false,subscriptions_restored:false};

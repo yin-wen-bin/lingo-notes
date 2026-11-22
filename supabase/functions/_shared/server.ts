@@ -48,13 +48,5 @@ export async function readJson(request:Request) {
   try{return JSON.parse(text);}catch{fail('INVALID_REQUEST');}
 }
 export async function batchResult(db:any,userId:string,batchId?:string,date?:string) {
-  let query=db.from('lingo_review_batches').select('*').eq('user_id',userId);
-  query=batchId?query.eq('id',batchId):query.eq('local_date',date);
-  const batch=checked<any>(await query.maybeSingle());
-  if(!batch)return {batch:null};
-  const items=checked<any[]>(await db.from('lingo_review_items').select('card_id,position').eq('batch_id',batch.id).eq('user_id',userId).order('position'));
-  const ids=items.map(i=>i.card_id);
-  const cards=ids.length?checked<any[]>(await db.from('lingo_cards').select('id,payload').eq('user_id',userId).in('id',ids)):[];
-  const deliveries=checked<any[]>(await db.from('lingo_deliveries').select('channel,status,attempts,accepted_at,last_error').eq('user_id',userId).eq('batch_id',batch.id));
-  return {batch:{id:batch.id,local_date:batch.local_date,created_at:batch.created_at,opened_at:batch.opened_at,cards:ids.map(id=>cards.find(c=>c.id===id)?.payload).filter(Boolean),deliveries}};
+  return await rpc(db,'lingo_review_batch',{p_user:userId,p_batch:batchId??null,p_date:date??null});
 }

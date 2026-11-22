@@ -1,5 +1,5 @@
 import {database,rpc,checked,ownedRecord,cors,json,readJson,batchResult} from '../_shared/server.ts';
-import {MODEL,TEMPLATE_VERSION,REQUEST_MS,fail,safeError,uuid,inputText,material,sha256,decodePng,parseLesson,lessonMessages,cardsForLesson,deepseek,shanghaiClock,learningFailurePatch,explanationMode,fontTheme} from '../_shared/core.mjs';
+import {MODEL,TEMPLATE_VERSION,REQUEST_MS,fail,safeError,uuid,inputText,material,sha256,decodePng,parseLesson,lessonMessages,cardsForLesson,deepseek,shanghaiClock,learningFailurePatch,explanationMode,fontTheme,explanationLanguage,withExplanationLanguage,reviewDailyLimit,reviewPointKey} from '../_shared/core.mjs';
 import {partialLesson} from '../_shared/partial-lesson.mjs';
 import {subscriptionInput,push} from '../_shared/notifications.ts';
 
@@ -12,6 +12,9 @@ async function learning(db:any,userId:string,action:string,p:any,requestId:strin
   const recordId=uuid(p.record_id),isOcr=['learning.recognize','learning.recognizeRetry'].includes(action);
   let png:any=null;
   const patch:any=material(p);
+  // Omitted legacy fields keep their original hash. Defaults are applied only
+  // after replay detection in the save transaction. OCR does not translate.
+  if(!isOcr&&p.explanation_language!==undefined)patch.explanation_language=explanationLanguage(p.explanation_language);
   if(action==='learning.submit')patch.original_text=inputText(p.text??p.original_text);
   else if(action==='learning.recognize')png=decodePng(p.image);
   else if(!isOcr)patch.corrected_text=inputText(p.text);
@@ -50,6 +53,7 @@ async function learning(db:any,userId:string,action:string,p:any,requestId:strin
   const timeout=setTimeout(()=>abort.abort(new Error('REQUEST_INTERRUPTED_RESULT_UNKNOWN')),remaining);
   let polling=false,uploadedPath:string|null=null,lastPreview='',lastPreviewAt=0,firstReadable:number|null=null;
   const mode=isOcr?'fast':explanationMode(record.explanation_mode??'fast');
+  const targetLanguage=explanationLanguage(record.explanation_language??'zh');
   let providerMetadata:any={model:MODEL,usage:null,explanation_mode:mode};
   const started=performance.now();
   const watcher=setInterval(async()=>{
@@ -85,7 +89,8 @@ async function learning(db:any,userId:string,action:string,p:any,requestId:strin
       const result=await deepseek({key,messages,signal:abort.signal,json:!isOcr,mode,onMetadata:(metadata:any)=>{providerMetadata=metadata;},onDelta:(raw:string)=>{
         if(isOcr||abort.signal.aborted)return;
         const now=performance.now();if(now-lastPreviewAt<100)return;
-        const preview=partialLesson(raw);if(!preview)return;
+        const partial=partialLesson(raw);if(!partial)return;
+        const preview=withExplanationLanguage(partial,targetLanguage);
         const serialized=JSON.stringify(preview);if(serialized===lastPreview)return;
         firstReadable??=now-started;lastPreview=serialized;lastPreviewAt=now;emit('progress',{preview});
       }});
@@ -95,7 +100,7 @@ async function learning(db:any,userId:string,action:string,p:any,requestId:strin
         if(!result.text.trim()||result.text.length>12000)fail('INVALID_RECOGNIZED_TEXT');
         finalPatch={status:'awaiting_review',recognized_text:result.text.trim(),error:null,error_details:null,model:result.model,usage:result.usage,explanation_mode:result.explanation_mode,template_version:TEMPLATE_VERSION};
       }else{
-        const lesson=parseLesson(result.text);
+        const lesson=withExplanationLanguage(parseLesson(result.text,targetLanguage),targetLanguage);
         cards=cardsForLesson(record,lesson);
         finalPatch={status:'complete',result:lesson,result_revision:record.revision+1,result_mode:result.explanation_mode,language:lesson.language,error:null,error_details:null,model:result.model,usage:result.usage,explanation_mode:result.explanation_mode,template_version:TEMPLATE_VERSION};
       }
@@ -140,7 +145,7 @@ export async function handler(request:Request):Promise<Response> {
     if(learningActions.has(action))return await learning(db,userId,action,p,uuid(body.request_id),headers);
     let result:any;
     switch(action){
-      case 'ping':result={protocol:'cloud/2',protocol_version:'lingo-cloud/2',model:MODEL,template_version:TEMPLATE_VERSION};break;
+      case 'ping':result={protocol:'cloud/5',protocol_version:'lingo-cloud/5',model:MODEL,template_version:TEMPLATE_VERSION};break;
       case 'key.status':result=await rpc(db,'lingo_key_get',{p_user:userId,p_plain:false});break;
       case 'key.save':{
         if(typeof p.key!=='string'||!/^sk-[A-Za-z0-9_-]{16,250}$/.test(p.key.trim()))fail('INVALID_API_KEY');
@@ -180,18 +185,23 @@ export async function handler(request:Request):Promise<Response> {
         result={url:signed.signedUrl,expires_in:60};break;
       }
       case 'settings.get':{
-        const settings=checked<any>(await db.from('lingo_settings').select('review_enabled,push_enabled,explanation_mode,font_theme').eq('user_id',userId).maybeSingle());
-        result={review_enabled:false,push_enabled:false,...settings,explanation_mode:settings?.explanation_mode??'fast',font_theme:settings?.font_theme??'clean',vapid_public_key:Deno.env.get('VAPID_PUBLIC_KEY')??null,pwa_url:Deno.env.get('PWA_URL')??null};break;
+        const settings=checked<any>(await db.from('lingo_settings').select('review_enabled,push_enabled,review_daily_limit,explanation_mode,font_theme,explanation_language').eq('user_id',userId).maybeSingle());
+        result={review_enabled:false,push_enabled:false,...settings,review_daily_limit:settings?.review_daily_limit??5,explanation_mode:settings?.explanation_mode??'fast',font_theme:settings?.font_theme??'refined',explanation_language:settings?.explanation_language??'zh',vapid_public_key:Deno.env.get('VAPID_PUBLIC_KEY')??null,pwa_url:Deno.env.get('PWA_URL')??null};break;
       }
       case 'settings.update':{
         const values:any={user_id:userId,updated_at:new Date().toISOString()};
         if(p.email_enabled!==undefined)fail('INVALID_SETTINGS');
         for(const key of ['review_enabled','push_enabled'])if(p[key]!==undefined){if(typeof p[key]!=='boolean')fail('INVALID_SETTINGS');values[key]=p[key];}
+        if(p.review_daily_limit!==undefined)values.review_daily_limit=reviewDailyLimit(p.review_daily_limit);
         if(p.explanation_mode!==undefined)values.explanation_mode=explanationMode(p.explanation_mode);
         if(p.font_theme!==undefined)values.font_theme=fontTheme(p.font_theme);
+        if(p.explanation_language!==undefined){
+          if(!['zh','ja','en'].includes(p.explanation_language))fail('INVALID_SETTINGS');
+          values.explanation_language=explanationLanguage(p.explanation_language);
+        }
         if(values.push_enabled&&!checked<any>(await db.from('lingo_push_subscriptions').select('user_id').eq('user_id',userId).maybeSingle()))fail('PUSH_SUBSCRIPTION_MISSING');
-        result=checked<any>(await db.from('lingo_settings').upsert(values).select('review_enabled,push_enabled,explanation_mode,font_theme').single());
-        result.explanation_mode??='fast';result.font_theme??='clean';break;
+        result=checked<any>(await db.from('lingo_settings').upsert(values).select('review_enabled,push_enabled,review_daily_limit,explanation_mode,font_theme,explanation_language').single());
+        result.review_daily_limit??=5;result.explanation_mode??='fast';result.font_theme??='refined';result.explanation_language??='zh';break;
       }
       case 'push.subscribe':{
         const subscription=subscriptionInput(p.subscription??p);
@@ -205,6 +215,12 @@ export async function handler(request:Request):Promise<Response> {
       case 'push.test':result=await push(db,userId,null,true);break;
       case 'review.today':result=await batchResult(db,userId,undefined,shanghaiClock().date);break;
       case 'review.get':result=await batchResult(db,userId,uuid(p.batch_id));break;
+      case 'review.cards':result=await rpc(db,'lingo_review_cards',{p_user:userId,p_record:uuid(p.record_id)});break;
+      case 'review.complete':result=await rpc(db,'lingo_review_complete',{p_user:userId,p_batch:uuid(p.batch_id),p_card:uuid(p.card_id),p_point:reviewPointKey(p.point_key)});break;
+      case 'review.mastery':{
+        if(typeof p.mastered!=='boolean')fail('INVALID_REVIEW_STATE');
+        result=await rpc(db,'lingo_review_mastery',{p_user:userId,p_card:uuid(p.card_id),p_point:reviewPointKey(p.point_key),p_mastered:p.mastered});break;
+      }
       case 'review.opened':{
         const id=uuid(p.batch_id);
         checked(await db.from('lingo_review_batches').update({opened_at:new Date().toISOString()}).eq('user_id',userId).eq('id',id).is('opened_at',null));

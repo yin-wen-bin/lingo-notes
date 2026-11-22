@@ -7,8 +7,8 @@ import {ROOT} from './cloud-config.mjs';
 import {extensionManifest} from './build.mjs';
 
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
-const required=['manifest.json','background.js','panel.js','page.js','panel.html','panel.css','assets/THIRD_PARTY_NOTICES.md',...[16,32,48,128].map(n=>`assets/icon-${n}.png`),'assets/pronunciation.png','assets/typography/fonts.css','assets/typography/typography.css'];
-const fonts=['zen-kaku-gothic-new','noto-serif-sc','noto-serif-jp','noto-sans-sc','lxgw-wenkai-screen','lora','literata','klee-one','dm-sans'];
+const required=['manifest.json','background.js','panel.js','page.js','panel.html','panel.css','assets/THIRD_PARTY_NOTICES.md',...[16,32,48,128].map(n=>`assets/icon-${n}.png`),'assets/pronunciation.png','assets/ui/search.svg','assets/ui/trash.svg','assets/ui/image.svg','assets/ui/capture.svg','assets/ui/HEROICONS-LICENSE.txt','assets/typography/fonts.css','assets/typography/typography.css'];
+const fonts=['zen-kaku-gothic-new','noto-serif-sc','noto-serif-jp','noto-sans-sc','lxgw-wenkai-screen','lora','literata','klee-one','dm-sans','inter','manrope','noto-sans-jp'];
 const permitted=path=>required.includes(path)||/^assets\/typography\/fonts\/[a-z0-9-]+\.woff2$/.test(path)||fonts.some(name=>path===`assets/typography/licenses/${name}-OFL.txt`);
 export function assertSafeText(text){
   if(/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\bsb_secret_[A-Za-z0-9_-]{10,}|\bsk-[A-Za-z0-9_-]{20,}/.test(text))throw Error('SECRET_PATTERN_IN_EXTENSION');
@@ -22,10 +22,10 @@ export function inspectExtension(directory){
   function visit(current){for(const entry of readdirSync(current,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name,'en'))){
     const absolute=join(current,entry.name),stat=lstatSync(absolute),name=relative(root,absolute).split(sep).join('/');
     if(stat.isSymbolicLink())throw Error('PACKAGE_SYMLINK_NOT_ALLOWED');
-    if(entry.isDirectory()){if(!['assets','assets/typography','assets/typography/fonts','assets/typography/licenses'].includes(name))throw Error('UNEXPECTED_PACKAGE_DIRECTORY');visit(absolute);continue;}
+    if(entry.isDirectory()){if(!['assets','assets/ui','assets/typography','assets/typography/fonts','assets/typography/licenses'].includes(name))throw Error('UNEXPECTED_PACKAGE_DIRECTORY');visit(absolute);continue;}
     if(!entry.isFile()||!permitted(name))throw Error('UNEXPECTED_PACKAGE_FILE');
     const bytes=readFileSync(absolute);total+=bytes.length;if(total>128*1024*1024)throw Error('EXTENSION_PACKAGE_TOO_LARGE');
-    if(/\.(js|css|html|json|txt|md)$/.test(name))assertSafeText(bytes.toString('utf8'));
+    if(/\.(js|css|html|json|txt|md|svg)$/.test(name))assertSafeText(bytes.toString('utf8'));
     files.push({path:name,bytes,sha256:digest(bytes)});
   }}
   visit(root);const names=new Set(files.map(file=>file.path));

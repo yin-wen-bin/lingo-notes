@@ -1,7 +1,9 @@
 import {chooseVoice,pronunciation} from './learning-ui.ts';
 
 export type PlaybackState='loading'|'speaking'|'ended'|'stopped'|'error';
+export type SpeechMessage='voiceMissing'|'playFailed'|'unavailable';
 type Update=(state:PlaybackState,message?:string)=>void;
+const defaultMessage=(code:SpeechMessage,language?:string)=>code==='voiceMissing'?`当前浏览器没有${language==='ja-JP'?'日语':'英语'}语音。请在 Windows 语言设置中添加对应语音后重新打开侧栏。`:code==='playFailed'?'发音未能播放，请检查声音或稍后重试。':'当前浏览器无法播放发音，请重新打开侧栏后重试。';
 
 export class WordSpeech{
   private token=0;
@@ -9,7 +11,8 @@ export class WordSpeech{
   private abortWait:(()=>void)|null=null;
   private synth:SpeechSynthesis;
   private createUtterance:(text:string)=>SpeechSynthesisUtterance;
-  constructor(synth:SpeechSynthesis,createUtterance:(text:string)=>SpeechSynthesisUtterance=text=>new SpeechSynthesisUtterance(text)){this.synth=synth;this.createUtterance=createUtterance;}
+  private message:(code:SpeechMessage,language?:string)=>string;
+  constructor(synth:SpeechSynthesis,createUtterance:(text:string)=>SpeechSynthesisUtterance=text=>new SpeechSynthesisUtterance(text),message:(code:SpeechMessage,language?:string)=>string=defaultMessage){this.synth=synth;this.createUtterance=createUtterance;this.message=message;}
   stop(){
     ++this.token;this.abortWait?.();const active=this.active;this.active=null;
     this.synth.cancel();active?.update('stopped');
@@ -22,14 +25,14 @@ export class WordSpeech{
       let voices=this.synth.getVoices();
       if(!voices.length){await this.waitForVoices();if(token!==this.token)return;voices=this.synth.getVoices();}
       const voice=chooseVoice(voices,lang);
-      if(!voice){this.active=null;update('error',`当前浏览器没有${lang==='ja-JP'?'日语':'英语'}语音。请在 Windows 语言设置中添加对应语音后重新打开侧栏。`);return;}
+      if(!voice){this.active=null;update('error',this.message('voiceMissing',lang));return;}
       const utterance=this.createUtterance(text);utterance.lang=lang;utterance.voice=voice;utterance.rate=.85;
       this.active!.utterance=utterance;
       utterance.onstart=()=>{if(token===this.token)update('speaking');};
       utterance.onend=()=>{if(token===this.token){this.active=null;update('ended');}};
-      utterance.onerror=event=>{if(token!==this.token)return;this.active=null;update(event.error==='canceled'||event.error==='interrupted'?'stopped':'error','发音未能播放，请检查声音或稍后重试。');};
+      utterance.onerror=event=>{if(token!==this.token)return;this.active=null;update(event.error==='canceled'||event.error==='interrupted'?'stopped':'error',this.message('playFailed'));};
       this.synth.resume();this.synth.speak(utterance);
-    }catch{if(token===this.token){this.active=null;update('error','当前浏览器无法播放发音，请重新打开侧栏后重试。');}}
+    }catch{if(token===this.token){this.active=null;update('error',this.message('unavailable'));}}
   }
   private waitForVoices(){
     return new Promise<void>(resolve=>{

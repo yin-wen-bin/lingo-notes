@@ -106,7 +106,7 @@ test('provider usage survives a failed final schema and a length finish; unavail
 });
 
 let db;
-async function database(fontPreferences=true){
+async function database(fontPreferences=true,explanationLanguages=true,refinedFonts=true,reviewControls=true){
   const db=new PGlite();
   await db.exec(`
     create role anon; create role authenticated; create role service_role bypassrls;
@@ -123,7 +123,16 @@ async function database(fontPreferences=true){
   const sql=readFileSync(new URL('../supabase/migrations/202611190001_lingo_cloud.sql',import.meta.url),'utf8').replace('create extension if not exists supabase_vault with schema vault;','');
   await db.exec(sql);
   await db.exec(readFileSync(new URL('../supabase/migrations/202611190003_explanation_mode.sql',import.meta.url),'utf8'));
-  if(fontPreferences)await db.exec(readFileSync(new URL('../supabase/migrations/202611200004_font_preferences.sql',import.meta.url),'utf8'));
+  if(fontPreferences){
+    await db.exec(readFileSync(new URL('../supabase/migrations/202611200004_font_preferences.sql',import.meta.url),'utf8'));
+    if(explanationLanguages){
+      await db.exec(readFileSync(new URL('../supabase/migrations/202611200005_explanation_language.sql',import.meta.url),'utf8'));
+      if(refinedFonts){
+        await db.exec(readFileSync(new URL('../supabase/migrations/202611210006_refined_typography.sql',import.meta.url),'utf8'));
+        if(reviewControls)await db.exec(readFileSync(new URL('../supabase/migrations/202611220007_review_controls.sql',import.meta.url),'utf8'));
+      }
+    }
+  }
   return db;
 }
 before(async()=>{db=await database();});
@@ -135,17 +144,20 @@ async function begin(u,{record=randomUUID(),request=randomUUID(),action='learnin
   const value=await call('lingo_begin',[u,request,record,action,hash,JSON.stringify(material),revision]);return {value,record,request};
 }
 const finish=(u,req,patch={status:'complete',result:lesson},cards=[])=>call('lingo_finish',[u,req,'complete',JSON.stringify(patch),JSON.stringify(cards)]);
-test('settings API validates themes, preserves partial settings and scopes writes to the authenticated account',async()=>{
-  const a=await user(),b=await user(),authUsers=new Map([['session-a',a],['session-b',b]]);
+test('settings and review APIs validate inputs and derive every owner from the authenticated account',async()=>{
+  const a=await user(),b=await user(),c=await user(),authUsers=new Map([['session-a',a],['session-b',b],['session-c',c]]);
   const client={auth:{async getUser(token){return {data:{user:authUsers.has(token)?{id:authUsers.get(token)}:null},error:null};}},from(table){
     assert.equal(table,'lingo_settings');let fields='*',owner=null,values=null;
     const chain={select(value){fields=value;return chain;},eq(key,value){assert.equal(key,'user_id');owner=value;return chain;},upsert(value){values=value;return chain;},async maybeSingle(){
       return {data:(await query(`select ${fields} from lingo_settings where user_id=$1`,[owner]))[0]??null,error:null};
     },async single(){
-      const keys=Object.keys(values);assert.ok(keys.every(key=>['user_id','updated_at','review_enabled','push_enabled','explanation_mode','font_theme'].includes(key)));
+      const keys=Object.keys(values);assert.ok(keys.every(key=>['user_id','updated_at','review_enabled','push_enabled','review_daily_limit','explanation_mode','font_theme','explanation_language'].includes(key)));
       const rows=await query(`insert into lingo_settings(${keys.join(',')}) values(${keys.map((_,i)=>'$'+(i+1)).join(',')}) on conflict(user_id) do update set ${keys.filter(key=>key!=='user_id').map(key=>`${key}=excluded.${key}`).join(',')} returning ${fields}`,keys.map(key=>values[key]));
       return {data:rows[0],error:null};
     }};return chain;
+  },async rpc(name,args){
+    assert.ok(['lingo_review_cards','lingo_review_mastery','lingo_review_complete','lingo_review_batch'].includes(name));
+    try{return {data:await call(name,Object.values(args)),error:null};}catch(error){return {data:null,error:{message:error.message}};}
   }};
   const bundle=await build({entryPoints:['supabase/functions/app-api/index.ts'],bundle:true,format:'cjs',platform:'node',write:false,plugins:[{name:'emulated-platform',setup(builder){
     builder.onResolve({filter:/^npm:/},args=>({path:args.path,namespace:'emulated-platform'}));
@@ -157,29 +169,73 @@ test('settings API validates themes, preserves partial settings and scopes write
     const response=await module.exports.handler(new Request('https://synthetic.example.test/functions/v1/app-api',{method:'POST',headers:{Authorization:`Bearer ${session}`,'Content-Type':'application/json'},body:JSON.stringify({action,params})}));
     return response.json();
   };
-  const fresh=await callApi('settings.get');assert.equal(fresh.result.font_theme,'clean');assert.equal('email_enabled' in fresh.result,false);assert.equal('email_available' in fresh.result,false);
+  const fresh=await callApi('settings.get');assert.equal(fresh.result.font_theme,'refined');assert.equal('email_enabled' in fresh.result,false);assert.equal('email_available' in fresh.result,false);
   await query("insert into lingo_settings(user_id,review_enabled,push_enabled,explanation_mode,font_theme) values($1,false,true,'thinking','handwritten'),($2,true,false,'fast','clean')",[a,b]);
   const changed=await callApi('settings.update',{font_theme:'bookish',user_id:b});
-  assert.deepEqual(changed,{ok:true,result:{review_enabled:false,push_enabled:true,explanation_mode:'thinking',font_theme:'bookish'}});
+  assert.deepEqual(changed,{ok:true,result:{review_enabled:false,push_enabled:true,review_daily_limit:5,explanation_mode:'thinking',font_theme:'bookish',explanation_language:'zh'}});
   assert.equal((await callApi('settings.get',{},'session-b')).result.font_theme,'clean');
   for(const font_theme of [null,'','CLEAN','unknown',{},false,42,['clean']])assert.deepEqual(await callApi('settings.update',{font_theme}),{ok:false,error:'INVALID_SETTINGS'});
   for(const email_enabled of [true,false])assert.deepEqual(await callApi('settings.update',{email_enabled}),{ok:false,error:'INVALID_SETTINGS'});
   assert.equal((await callApi('settings.get')).result.font_theme,'bookish');
-  assert.equal((await callApi('ping')).result.protocol,'cloud/2');
-  assert.equal((await callApi('ping')).result.protocol_version,'lingo-cloud/2');
+  assert.equal(fresh.result.explanation_language,'zh');
+  for(const language of ['zh','ja','en']){
+    const selected=await callApi('settings.update',{explanation_language:language,user_id:b});
+    assert.equal(selected.result.explanation_language,language);assert.equal(selected.result.font_theme,'bookish');assert.equal(selected.result.explanation_mode,'thinking');
+  }
+  assert.equal((await callApi('settings.get',{},'session-b')).result.explanation_language,'zh');
+  for(const explanation_language of [null,'','fr','ZH',{},false,42,['en']])assert.deepEqual(await callApi('settings.update',{explanation_language}),{ok:false,error:'INVALID_SETTINGS'});
+  assert.equal((await callApi('settings.get')).result.explanation_language,'en');
+  for(const font_theme of ['handwritten','bookish','clean','refined']){
+    const selected=await callApi('settings.update',{font_theme});
+    assert.equal(selected.result.font_theme,font_theme);assert.equal(selected.result.explanation_language,'en');assert.equal(selected.result.explanation_mode,'thinking');assert.equal(selected.result.push_enabled,true);assert.equal(selected.result.review_enabled,false);
+    assert.equal((await callApi('settings.get')).result.font_theme,font_theme);
+  }
+  assert.equal((await callApi('settings.get',{},'session-b')).result.font_theme,'clean');
+  const firstPartial=await callApi('settings.update',{explanation_mode:'thinking',explanation_language:'ja'},'session-c');
+  assert.equal(firstPartial.result.font_theme,'refined');assert.equal(firstPartial.result.explanation_language,'ja');assert.equal(firstPartial.result.explanation_mode,'thinking');
+  assert.equal((await callApi('settings.get')).result.review_daily_limit,5);
+  for(const review_daily_limit of [1,12,100]){
+    const saved=await callApi('settings.update',{review_daily_limit,user_id:b});
+    assert.equal(saved.result.review_daily_limit,review_daily_limit);assert.equal(saved.result.font_theme,'refined');
+  }
+  for(const review_daily_limit of [0,101,1.5,'20',null,false,{},[]]){
+    assert.deepEqual(await callApi('settings.update',{review_daily_limit}),{ok:false,error:'INVALID_SETTINGS'});
+  }
+  assert.equal((await callApi('settings.get',{},'session-b')).result.review_daily_limit,5);
+  assert.equal((await callApi('ping')).result.protocol,'cloud/5');
+  assert.equal((await callApi('ping')).result.protocol_version,'lingo-cloud/5');
   assert.deepEqual(await callApi('settings.get',{},'expired'),{ok:false,error:'SESSION_EXPIRED'});
+  const saved=await reviewSeed(a),foreign=await reviewSeed(b),batch=await call('lingo_make_batch',[a,'2026-11-02T03:00:00Z']);
+  // settings above left a disabled; enable only the synthetic owner before creating its batch.
+  await callApi('settings.update',{review_enabled:true});
+  const ownBatch=batch??await call('lingo_make_batch',[a,'2026-11-02T03:00:00Z']);
+  const listed=await callApi('review.cards',{record_id:saved.record,user_id:b});
+  assert.equal(listed.result.cards[0].point_key,saved.point_key);assert.equal(listed.result.cards[0].kind,'vocabulary');assert.equal(listed.result.cards[0].slot,0);
+  assert.deepEqual(await callApi('review.cards',{record_id:foreign.record}),{ok:false,error:'RECORD_NOT_FOUND'});
+  assert.deepEqual(await callApi('review.mastery',{card_id:saved.id,point_key:saved.point_key,mastered:'true'}),{ok:false,error:'INVALID_REVIEW_STATE'});
+  assert.deepEqual(await callApi('review.mastery',{card_id:saved.id,point_key:'invalid',mastered:true}),{ok:false,error:'INVALID_REVIEW_POINT'});
+  assert.deepEqual(await callApi('review.mastery',{card_id:foreign.id,point_key:foreign.point_key,mastered:true,user_id:b}),{ok:false,error:'CARD_CHANGED'});
+  const marked=await callApi('review.mastery',{card_id:saved.id,point_key:saved.point_key,mastered:true,user_id:b});
+  assert.equal(marked.result.card.mastered,true);assert.equal((await call('lingo_review_card',[b,foreign.id])).mastered,false);
+  assert.equal((await callApi('review.get',{batch_id:ownBatch})).result.batch.cards.length,0);
+  assert.equal((await callApi('review.mastery',{card_id:saved.id,point_key:saved.point_key,mastered:false})).result.card.mastered,false);
+  const reviewed=await callApi('review.complete',{batch_id:ownBatch,card_id:saved.id,point_key:saved.point_key,user_id:b});
+  assert.equal(reviewed.result.reviewed,true);assert.equal(reviewed.result.card.review_round,1);assert.equal(reviewed.result.card.reviewed,true);
+  assert.equal((await callApi('review.complete',{batch_id:ownBatch,card_id:saved.id,point_key:saved.point_key})).result.card.review_round,1);
+  assert.deepEqual(await callApi('review.complete',{batch_id:ownBatch,card_id:saved.id,point_key:saved.point_key},'session-b'),{ok:false,error:'REVIEW_ITEM_NOT_FOUND'});
+  assert.deepEqual((await callApi('review.get',{batch_id:ownBatch},'session-b')).result,{batch:null});
 });
-test('font preferences default clean, enforce enum and preserve other account settings',async()=>{
+test('font preferences default refined, retain all four options and preserve other account settings',async()=>{
   const a=await user(),b=await user();
   await query("insert into lingo_settings(user_id,review_enabled,push_enabled,explanation_mode) values($1,false,true,'thinking'),($2,true,false,'fast')",[a,b]);
-  assert.equal((await query('select font_theme from lingo_settings where user_id=$1',[a]))[0].font_theme,'clean');
-  for(const value of ['handwritten','bookish','clean']){
+  assert.equal((await query('select font_theme from lingo_settings where user_id=$1',[a]))[0].font_theme,'refined');
+  for(const value of ['handwritten','bookish','clean','refined']){
     assert.equal(fontTheme(value),value);
     await query('update lingo_settings set font_theme=$2 where user_id=$1',[a,value]);
   }
   const settings=(await query('select * from lingo_settings where user_id=$1',[a]))[0];
-  assert.equal(settings.font_theme,'clean');assert.equal(settings.review_enabled,false);assert.equal(settings.push_enabled,true);assert.equal(settings.explanation_mode,'thinking');
-  assert.equal((await query('select font_theme from lingo_settings where user_id=$1',[b]))[0].font_theme,'clean');
+  assert.equal(settings.font_theme,'refined');assert.equal(settings.review_enabled,false);assert.equal(settings.push_enabled,true);assert.equal(settings.explanation_mode,'thinking');
+  assert.equal((await query('select font_theme from lingo_settings where user_id=$1',[b]))[0].font_theme,'refined');
   for(const value of [null,'','HANDWRITTEN','other',{},false,0,['clean']])assert.throws(()=>fontTheme(value),/INVALID_SETTINGS/);
   await assert.rejects(query("update lingo_settings set font_theme='other' where user_id=$1",[a]),/check constraint/);
   await assert.rejects(query('update lingo_settings set font_theme=null where user_id=$1',[a]),/not-null constraint/);
@@ -187,10 +243,49 @@ test('font preferences default clean, enforce enum and preserve other account se
   await db.exec(`set role authenticated;select set_config('test.user_id','${b}',false)`);
   try{
     const visible=await query('select user_id,font_theme from lingo_settings');
-    assert.deepEqual(visible,[{user_id:b,font_theme:'clean'}]);
+    assert.deepEqual(visible,[{user_id:b,font_theme:'refined'}]);
     await assert.rejects(query("update lingo_settings set font_theme='bookish' where user_id=$1",[a]),/permission denied/);
     await assert.rejects(query("select public.lingo_claim_delivery($1,'email')",[randomUUID()]),/permission denied/);
   }finally{await db.exec('reset role');}
+});
+
+test('refined migration preserves every existing font choice and changes only future defaults',async t=>{
+  const old=await database(true,true,false);t.after(()=>old.close());
+  const themes=['handwritten','bookish','clean'];
+  for(const font of themes){
+    const owner=randomUUID();await old.query('insert into auth.users(id) values($1)',[owner]);
+    await old.query("insert into lingo_settings(user_id,font_theme,explanation_language,explanation_mode,review_enabled,push_enabled) values($1,$2,'ja','thinking',true,true)",[owner,font]);
+  }
+  const before=(await old.query('select * from lingo_settings order by user_id')).rows;
+  await old.exec(readFileSync(new URL('../supabase/migrations/202611210006_refined_typography.sql',import.meta.url),'utf8'));
+  assert.deepEqual((await old.query('select * from lingo_settings order by user_id')).rows,before);
+  const owner=randomUUID();await old.query('insert into auth.users(id) values($1)',[owner]);
+  await old.query('insert into lingo_settings(user_id) values($1)',[owner]);
+  const defaults=(await old.query('select font_theme,explanation_language from lingo_settings where user_id=$1',[owner])).rows[0];
+  assert.deepEqual(defaults,{font_theme:'refined',explanation_language:'zh'});
+});
+
+test('review migration keeps existing notes and daily batches without mistaking old selection or opens for completion',async t=>{
+  const old=await database(true,true,true,false);t.after(()=>old.close());
+  const owner=randomUUID(),record=randomUUID(),request=randomUUID(),card=randomUUID();
+  const oldCall=async(name,args)=>(await old.query(`select public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) as value`,args)).rows[0].value;
+  await old.query('insert into auth.users(id) values($1)',[owner]);
+  await old.query('insert into lingo_settings(user_id,review_enabled,push_enabled) values($1,true,true)',[owner]);
+  await oldCall('lingo_begin',[owner,request,record,'learning.submit','old-material',JSON.stringify({original_text:'learn'}),null]);
+  await oldCall('lingo_finish',[owner,request,'complete',JSON.stringify({status:'complete',result:lesson}),JSON.stringify([{id:card,language:'en',term:'learn',reading:'/lɜːn/',meaning:'学习',example:examples[0]}])]);
+  await old.query("update lingo_cards set local_date='2026-11-01',last_selected_at='2026-11-01T03:00:00Z' where id=$1",[card]);
+  const batch=await oldCall('lingo_make_batch',[owner,'2026-11-05T03:00:00Z']);
+  await old.query("update lingo_review_batches set opened_at='2026-11-05T04:00:00Z' where id=$1",[batch]);
+  const before=(await old.query('select * from lingo_records where id=$1',[record])).rows[0];
+  await old.exec(readFileSync(new URL('../supabase/migrations/202611220007_review_controls.sql',import.meta.url),'utf8'));
+  assert.deepEqual((await old.query('select * from lingo_records where id=$1',[record])).rows[0],before);
+  assert.equal((await old.query('select review_daily_limit from lingo_settings where user_id=$1',[owner])).rows[0].review_daily_limit,5);
+  const progress=await oldCall('lingo_review_card',[owner,card]);
+  assert.equal(progress.review_round,0);assert.equal(progress.next_due_date,'2026-11-02');assert.equal(progress.mastered,false);assert.equal(progress.last_completed_at,null);
+  assert.equal(progress.kind,'vocabulary');assert.equal(progress.pos,'verb');assert.match(progress.point_key,/^[a-f0-9]{64}$/);
+  const existing=(await oldCall('lingo_review_batch',[owner,batch,null])).batch;
+  assert.equal(existing.id,batch);assert.ok(existing.opened_at);assert.equal(existing.cards.length,1);assert.equal(existing.cards[0].scheduled_round,1);assert.equal(existing.cards[0].reviewed,false);
+  assert.equal(await oldCall('lingo_make_batch',[owner,'2026-11-05T05:00:00Z']),batch);
 });
 
 test('font migration disables unfinished email deliveries and preserves accepted audit and push work',async t=>{
@@ -234,6 +329,44 @@ test('explanation preference defaults fast, rejects invalid values, and is snaps
   await query("update lingo_settings set explanation_mode='fast' where user_id=$1",[u]);
   assert.equal((await query('select payload from lingo_records where id=$1',[first.record]))[0].payload.explanation_mode,'thinking');
   await assert.rejects(query('update lingo_settings set explanation_mode=null where user_id=$1',[u]),/not-null constraint/);
+});
+
+test('language snapshots preserve request identity and failed retries keep the original result language',async()=>{
+  const u=await user();
+  await query("insert into lingo_settings(user_id,explanation_language) values($1,'ja')",[u]);
+  const first=await begin(u,{hash:'language-en',material:{original_text:'learn',explanation_language:'en'}});
+  assert.equal(first.value.record.explanation_language,'en');
+  assert.equal((await query('select explanation_language from lingo_settings where user_id=$1',[u]))[0].explanation_language,'ja');
+  await query("update lingo_settings set explanation_language='zh' where user_id=$1",[u]);
+  const replay=await begin(u,{record:first.record,request:first.request,hash:'language-en'});
+  assert.equal(replay.value.replay,true);assert.equal(replay.value.record.explanation_language,'en');
+  await assert.rejects(begin(u,{record:first.record,request:first.request,hash:'language-ja'}),/IDEMPOTENCY_CONFLICT/);
+  const savedLesson={...lesson,explanation_language:'en'};
+  await finish(u,first.request,{status:'complete',result:savedLesson});
+  const retry=await begin(u,{record:first.record,action:'learning.retry',revision:2,hash:'new-language',material:{corrected_text:'learn',explanation_language:'ja'}});
+  assert.equal(retry.value.record.explanation_language,'ja');assert.equal(retry.value.record.result.explanation_language,'en');
+  const failed=await call('lingo_finish',[u,retry.request,'failed',JSON.stringify(learningFailurePatch(new Error('MODEL_OUTPUT_INCOMPLETE'))),'[]']);
+  assert.equal(failed.explanation_language,'ja');assert.deepEqual(failed.result,savedLesson);
+  const legacy=await begin(u,{record:first.record,action:'learning.retry',revision:4,hash:'legacy',material:{corrected_text:'learn'}});
+  assert.equal(legacy.value.record.explanation_language,'zh');assert.deepEqual(legacy.value.record.result,savedLesson);
+  await call('lingo_cancel',[u,first.record]);
+  await assert.rejects(finish(u,legacy.request,{status:'complete',result:{...lesson,explanation_language:'zh'}}),/REQUEST_NOT_ACTIVE/);
+  assert.equal((await query('select payload from lingo_records where id=$1',[first.record]))[0].payload.result.explanation_language,'en');
+  await assert.rejects(query("update lingo_settings set explanation_language='fr' where user_id=$1",[u]),/check constraint/);
+  await assert.rejects(query('update lingo_settings set explanation_language=null where user_id=$1',[u]),/not-null constraint/);
+});
+
+test('language migration does not rewrite existing records or invalidate in-flight legacy request replay',async t=>{
+  const old=await database(true,false);t.after(()=>old.close());
+  const u=randomUUID(),request=randomUUID(),record=randomUUID();await old.query('insert into auth.users(id) values($1)',[u]);
+  await old.query('insert into lingo_settings(user_id) values($1)',[u]);
+  const args=[u,request,record,'learning.submit','old-material-hash',JSON.stringify({original_text:'legacy synthetic'})];
+  const saved=(await old.query('select public.lingo_begin($1,$2,$3,$4,$5,$6::jsonb) as result',args)).rows[0].result;
+  await old.exec(readFileSync(new URL('../supabase/migrations/202611200005_explanation_language.sql',import.meta.url),'utf8'));
+  const replay=(await old.query('select public.lingo_begin($1,$2,$3,$4,$5,$6::jsonb) as result',args)).rows[0].result;
+  assert.equal(replay.replay,true);assert.deepEqual(replay.record,saved.record);
+  assert.equal((await old.query('select explanation_language from lingo_settings where user_id=$1',[u])).rows[0].explanation_language,'zh');
+  assert.equal((await old.query('select count(*)::int as n from lingo_requests')).rows[0].n,1);
 });
 
 test('OCR and OCR retry always snapshot fast while confirmed explanation uses the current preference',async()=>{
@@ -358,7 +491,7 @@ test('logout unsubscribe matches device endpoint and does not remove another pri
   assert.equal((await call('lingo_unsubscribe',[u,'https://web.push.apple.com/new-device'])).removed,true);
   const settings=(await query('select * from lingo_settings where user_id=$1',[u]))[0];assert.equal(settings.push_enabled,false);assert.equal(settings.review_enabled,true);
 });
-test('SQL selection limits daily cards, skips today/recent repeats and keeps empty days empty',async()=>{
+test('SQL selection prioritizes overdue points, ignores uncompleted selection telemetry and keeps empty days empty',async()=>{
   assert.deepEqual(shanghaiClock(new Date('2026-11-19T23:00:00Z')),{date:'2026-11-20',hour:7});
   const u=await user();await query('insert into lingo_settings(user_id,review_enabled) values($1,true)',[u]);
   assert.equal(await call('lingo_make_batch',[u,'2026-11-19T23:00:00Z']),null);
@@ -369,7 +502,7 @@ test('SQL selection limits daily cards, skips today/recent repeats and keeps emp
   }
   const batch=await call('lingo_make_batch',[u,'2026-11-19T23:00:00Z']);
   const selected=await query('select c.payload from lingo_review_items i join lingo_cards c on c.id=i.card_id where i.batch_id=$1 order by i.position',[batch]);
-  assert.deepEqual(selected.map(r=>r.payload.term),['new1','new2','old1','old2','old3']);
+  assert.deepEqual(selected.map(r=>r.payload.term).sort(),['new2','old1','old2','old3','repeat']);
   assert.equal((await query('select * from lingo_deliveries where batch_id=$1',[batch])).length,0);
 });
 test('existing daily batch gains an enabled notification channel without reselection',async()=>{
@@ -393,7 +526,134 @@ test('regenerating a note updates stable card slots without emptying existing ba
   await finish(u,retry.request,{status:'complete',result:lesson},[{id:randomUUID(),term:'study',meaning:'修订说明'}]);
   const item=(await query('select c.id,c.payload from lingo_review_items i join lingo_cards c on c.id=i.card_id where i.batch_id=$1',[batch]))[0];
   assert.equal(item.id,card);assert.equal(item.payload.id,card);assert.equal(item.payload.term,'study');
+  assert.deepEqual((await call('lingo_review_batch',[u,batch,null])).batch.cards,[],'stale batch slot cannot expose or complete a different point');
   await call('lingo_delete',[u,saved.record,4]);assert.equal((await query('select * from lingo_review_items where batch_id=$1',[batch])).length,0);
+});
+
+const reviewPoint=(overrides={})=>({kind:'vocabulary',language:'en',explanation_language:'zh',term:'learn',reading:'/lɜːn/',pos:'verb',meaning:'学习',example:examples[0],...overrides});
+async function reviewSeed(u,date='2026-11-01',point=reviewPoint()){
+  const saved=await begin(u),id=randomUUID();
+  await finish(u,saved.request,{status:'complete',result:lesson},[{id,...point}]);
+  await query('update lingo_cards set local_date=$1 where id=$2',[date,id]);
+  return {...saved,id,...(await query('select point_key from lingo_cards where id=$1',[id]))[0]};
+}
+const atDay=day=>day+'T03:00:00Z';
+
+test('five spaced rounds advance only after explicit completion on days 1,3,7,14,30',async()=>{
+  const u=await user(),card=await reviewSeed(u);
+  await query('insert into lingo_settings(user_id,review_enabled) values($1,true)',[u]);
+  assert.equal(await call('lingo_make_batch',[u,atDay('2026-11-01')]),null);
+  const days=['2026-11-02','2026-11-04','2026-11-08','2026-11-15','2026-12-01'];
+  const due=['2026-11-04','2026-11-08','2026-11-15','2026-12-01',null];
+  for(let index=0;index<days.length;index++){
+    const batch=await call('lingo_make_batch',[u,atDay(days[index])]);
+    assert.ok(batch);assert.equal(await call('lingo_make_batch',[u,atDay(days[index])]),batch);
+    const before=(await call('lingo_review_batch',[u,batch,null])).batch.cards[0];
+    assert.equal(before.review_round,index);assert.equal(before.scheduled_round,index+1);assert.equal(before.reviewed,false);
+    const completed=await call('lingo_review_complete',[u,batch,card.id,card.point_key,atDay(days[index])]);
+    assert.equal(completed.card.review_round,index+1);assert.equal(completed.card.next_due_date,due[index]);assert.equal(completed.reviewed,true);
+    const again=await call('lingo_review_complete',[u,batch,card.id,card.point_key,atDay(days[index])]);
+    assert.equal(again.card.review_round,index+1);
+    const after=(await call('lingo_review_batch',[u,batch,null])).batch.cards[0];
+    assert.equal(after.reviewed,true);assert.ok(after.completed_at);
+    assert.equal(await call('lingo_batch_has_pending',[u,batch]),false);
+    if(index===0)assert.equal(await call('lingo_make_batch',[u,atDay('2026-11-03')]),null);
+  }
+  const state=await call('lingo_review_card',[u,card.id]);
+  assert.equal(state.completed,true);assert.equal(state.mastered,false);
+  assert.equal(await call('lingo_make_batch',[u,atDay('2026-12-31')]),null);
+  await call('lingo_review_mastery',[u,card.id,card.point_key,true,atDay('2026-12-31')]);
+  const undo=await call('lingo_review_mastery',[u,card.id,card.point_key,false,atDay('2026-12-31')]);
+  assert.equal(undo.card.review_round,0);assert.equal(undo.card.next_due_date,'2027-01-01');
+  const duplicate=await reviewSeed(u,'2026-12-31');
+  assert.equal(duplicate.point_key,card.point_key);
+  assert.equal((await call('lingo_review_card',[u,duplicate.id])).next_due_date,'2027-01-01','new duplicate cannot undo the explicit restart date');
+});
+
+test('unread batches do not advance; a late completion schedules from the actual Shanghai date',async()=>{
+  const u=await user(),card=await reviewSeed(u);
+  await query('insert into lingo_settings(user_id,review_enabled,push_enabled) values($1,true,true)',[u]);
+  const first=await call('lingo_make_batch',[u,'2026-11-01T23:00:00Z']);
+  const late=await call('lingo_make_batch',[u,'2026-11-09T23:00:00Z']);
+  assert.notEqual(first,late);assert.equal((await call('lingo_review_card',[u,card.id])).review_round,0);
+  await query('update lingo_review_batches set opened_at=now() where id=$1',[first]);
+  assert.equal((await call('lingo_review_card',[u,card.id])).review_round,0);
+  const done=await call('lingo_review_complete',[u,first,card.id,card.point_key,'2026-11-10T16:05:00Z']);
+  assert.equal(done.card.review_round,1);assert.equal(done.card.next_due_date,'2026-11-13');
+  assert.equal((await call('lingo_review_complete',[u,late,card.id,card.point_key,'2026-11-10T16:06:00Z'])).card.review_round,1);
+  assert.equal((await call('lingo_review_batch',[u,late,null])).batch.cards[0].reviewed,true);
+  assert.equal(await call('lingo_claim_delivery',[late,'push']),null);
+});
+
+test('custom daily limits cap unique due points and never replace an existing daily batch',async()=>{
+  const u=await user();
+  await query('insert into lingo_settings(user_id,review_enabled,review_daily_limit) values($1,true,7)',[u]);
+  for(let index=0;index<12;index++)await reviewSeed(u,'2026-11-'+String(index+1).padStart(2,'0'),reviewPoint({term:'term-'+index,meaning:'含义-'+index}));
+  const batch=await call('lingo_make_batch',[u,atDay('2026-11-20')]);
+  const initial=(await call('lingo_review_batch',[u,batch,null])).batch.cards;
+  assert.equal(initial.length,7);assert.equal(new Set(initial.map(card=>card.point_key)).size,7);
+  await query('update lingo_settings set review_daily_limit=2 where user_id=$1',[u]);
+  assert.equal(await call('lingo_make_batch',[u,atDay('2026-11-20')]),batch);
+  assert.equal((await call('lingo_review_batch',[u,batch,null])).batch.cards.length,7);
+  const next=await call('lingo_make_batch',[u,atDay('2026-11-21')]);
+  assert.equal((await call('lingo_review_batch',[u,next,null])).batch.cards.length,2);
+  for(const limit of [0,101])await assert.rejects(query('update lingo_settings set review_daily_limit=$2 where user_id=$1',[u,limit]),/lingo_settings_review_daily_limit_check/);
+});
+
+test('mastery is shared only by identical normalized points and remains undoable from the original note',async()=>{
+  const u=await user(),a=await reviewSeed(u),b=await reviewSeed(u,'2026-11-02',reviewPoint({term:' ＬＥＡＲＮ ',meaning:' 学习 '}));
+  assert.equal(a.point_key,b.point_key);
+  const otherSense=await reviewSeed(u,'2026-11-02',reviewPoint({meaning:'得知'}));
+  const grammar=await reviewSeed(u,'2026-11-02',reviewPoint({kind:'grammar',pos:''}));
+  assert.notEqual(a.point_key,otherSense.point_key);assert.notEqual(a.point_key,grammar.point_key);
+  await query('insert into lingo_settings(user_id,review_enabled,push_enabled) values($1,true,true)',[u]);
+  const batch=await call('lingo_make_batch',[u,atDay('2026-11-20')]);
+  assert.equal((await call('lingo_review_batch',[u,batch,null])).batch.cards.length,3);
+  await call('lingo_review_mastery',[u,a.id,a.point_key,true,atDay('2026-11-20')]);
+  assert.equal((await call('lingo_review_card',[u,b.id])).mastered,true);
+  const remaining=(await call('lingo_review_batch',[u,batch,null])).batch.cards;
+  assert.equal(remaining.length,2);assert.equal(remaining.some(card=>card.point_key===a.point_key),false);
+  const third=await reviewSeed(u,'2026-11-20');
+  assert.equal((await call('lingo_review_card',[u,third.id])).mastered,true);
+  const original=await call('lingo_review_cards',[u,a.record]);
+  assert.equal(original.cards[0].mastered,true);assert.equal(original.cards[0].slot,0);assert.equal(original.cards[0].kind,'vocabulary');
+  const undone=await call('lingo_review_mastery',[u,a.id,a.point_key,false,atDay('2026-11-20')]);
+  assert.equal(undone.card.mastered,false);assert.equal((await call('lingo_review_card',[u,b.id])).mastered,false);
+});
+
+test('mastering every batch item suppresses pending delivery and stale revision actions cannot affect a changed point',async()=>{
+  const u=await user(),card=await reviewSeed(u);
+  await query('insert into lingo_settings(user_id,review_enabled,push_enabled) values($1,true,true)',[u]);
+  const batch=await call('lingo_make_batch',[u,atDay('2026-11-20')]);
+  await call('lingo_review_mastery',[u,card.id,card.point_key,true,atDay('2026-11-20')]);
+  assert.equal(await call('lingo_claim_delivery',[batch,'push']),null);
+  assert.equal(await call('lingo_batch_has_pending',[u,batch]),false);
+  assert.deepEqual((await call('lingo_review_batch',[u,batch,null])).batch.cards,[]);
+  const same=await begin(u,{record:card.record,action:'learning.retry',revision:2,hash:'same'});
+  await finish(u,same.request,{status:'complete',result:lesson},[{id:randomUUID(),...reviewPoint()}]);
+  assert.equal((await call('lingo_review_card',[u,card.id])).mastered,true);
+  const changed=await begin(u,{record:card.record,action:'learning.retry',revision:4,hash:'different'});
+  await finish(u,changed.request,{status:'complete',result:lesson},[{id:randomUUID(),...reviewPoint({meaning:'获得信息'})}]);
+  const current=await call('lingo_review_card',[u,card.id]);
+  assert.equal(current.mastered,false);assert.equal(current.review_round,0);assert.notEqual(current.point_key,card.point_key);
+  await assert.rejects(call('lingo_review_mastery',[u,card.id,card.point_key,true,atDay('2026-11-20')]),/CARD_CHANGED/);
+  await assert.rejects(call('lingo_review_complete',[u,batch,card.id,card.point_key,atDay('2026-11-20')]),/REVIEW_ITEM_NOT_FOUND/);
+});
+
+test('review data and writes are account scoped, and authenticated clients cannot call service RPCs directly',async()=>{
+  const owner=await user(),other=await user(),card=await reviewSeed(owner);
+  await query('insert into lingo_settings(user_id,review_enabled) values($1,true)',[owner]);
+  const batch=await call('lingo_make_batch',[owner,atDay('2026-11-20')]);
+  assert.equal(await call('lingo_review_card',[other,card.id]),null);
+  assert.deepEqual(await call('lingo_review_batch',[other,batch,null]),{batch:null});
+  await assert.rejects(call('lingo_review_cards',[other,card.record]),/RECORD_NOT_FOUND/);
+  await assert.rejects(call('lingo_review_mastery',[other,card.id,card.point_key,true,atDay('2026-11-20')]),/CARD_CHANGED/);
+  await assert.rejects(call('lingo_review_complete',[other,batch,card.id,card.point_key,atDay('2026-11-20')]),/REVIEW_ITEM_NOT_FOUND/);
+  await db.exec('set role authenticated');await query("select set_config('test.user_id',$1,false)",[other]);
+  assert.deepEqual(await query('select * from lingo_review_points'),[]);
+  await assert.rejects(call('lingo_review_mastery',[owner,card.id,card.point_key,true,atDay('2026-11-20')]),/permission denied/);
+  await db.exec('reset role');
+  assert.equal((await call('lingo_review_card',[owner,card.id])).mastered,false);
 });
 test('expired old push response does not remove refreshed keys on the same endpoint',async()=>{
   const u=await user(),old={endpoint:'https://web.push.apple.com/device',keys:{auth:'old'}},fresh={...old,keys:{auth:'new'}};

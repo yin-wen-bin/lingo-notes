@@ -1,5 +1,22 @@
 import { cropBounds } from './context';
+import {cachedUiLanguage,normalizeUiLanguage,surfaceText} from './surface-i18n';
+declare const __SUPABASE_URL__:string;
 const PANEL=chrome.runtime.getURL('panel.html');
+const UI_LANGUAGE_KEY='lingo-ui-language';
+const SESSION_KEY='lingo-session:'+(typeof __SUPABASE_URL__==='string'?__SUPABASE_URL__:'https://brbymnycnxtfchffanvs.supabase.co');
+let uiLanguageQueue=Promise.resolve();
+function queueLanguage(task:()=>Promise<void>){uiLanguageQueue=uiLanguageQueue.catch(()=>{}).then(task);return uiLanguageQueue;}
+async function uiIdentity(){
+  const stored=await chrome.storage.local.get([SESSION_KEY,UI_LANGUAGE_KEY]);let owner:string|null=null;
+  try{const raw=stored[SESSION_KEY];const session=typeof raw==='string'?JSON.parse(raw):null;if(typeof session?.user?.id==='string')owner=session.user.id;}catch{}
+  return {owner,language:cachedUiLanguage(stored[UI_LANGUAGE_KEY],owner)};
+}
+async function updateMenu(language:unknown){
+  const title=surfaceText(language,'contextTitle');
+  try{await new Promise<void>((resolve,reject)=>chrome.contextMenus.update('learn-selection',{title},()=>chrome.runtime.lastError?reject(Error('MENU_NOT_READY')):resolve()));}
+  catch{await new Promise<void>(resolve=>chrome.contextMenus.create({id:'learn-selection',title,contexts:['selection']},()=>{void chrome.runtime.lastError;resolve();}));}
+}
+async function refreshMenu(){await updateMenu((await uiIdentity()).language);}
 type Binding={tabId:number,windowId:number,frameId:number,documentId?:string,url:string,rect?:{x:number,y:number,width:number,height:number},viewport?:any};
 const captures=new Map<number,Binding>();
 const contextCache=new Map<string,{text:string,result:any,at:number}>();
@@ -30,12 +47,12 @@ async function context(text:string,binding?:Binding){
     contextCache.set(key,{text,result:output,at:Date.now()});return output;
   }catch{return {context:'',status:'unavailable',binding,source};}
 }
-async function capture(){
+async function capture(language:unknown){
   const [tab]=await chrome.tabs.query({active:true,lastFocusedWindow:true});
   if(captures.has(tab?.windowId))throw new Error('CAPTURE_IN_PROGRESS');
   const binding=await attach(tab);captures.set(binding.windowId,binding);
   try{
-    const selection=await page(binding,'select');
+    const selection=await page(binding,'select',{ui_language:normalizeUiLanguage(language)});
     const [active]=await chrome.tabs.query({active:true,windowId:binding.windowId});
     if(active?.id!==binding.tabId||active.url!==binding.url)throw new Error('TAB_CHANGED');
     if(JSON.stringify(await page(binding,'metrics'))!==JSON.stringify(selection.viewport))throw new Error('VIEWPORT_CHANGED');
@@ -59,10 +76,13 @@ const panels=new Set<chrome.runtime.Port>();
 const broadcast=(message:any)=>{ for(const port of panels)try{port.postMessage(message);}catch{} };
 const supported=(url?:string)=>!!url&&/^https?:\/\//.test(url)&&!/^https:\/\/(chromewebstore\.google\.com|chrome\.google\.com\/webstore)/.test(url);
 chrome.runtime.onInstalled.addListener(async()=>{
-  await chrome.contextMenus.removeAll();
-  chrome.contextMenus.create({id:'learn-selection',title:'用 Lingo Notes 学习“%s”',contexts:['selection']});
+  await queueLanguage(async()=>{await chrome.contextMenus.removeAll();await refreshMenu();});
   await chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false});
 });
+chrome.storage.onChanged.addListener((changes,area)=>{
+  if(area==='local'&&changes[SESSION_KEY])void queueLanguage(refreshMenu).catch(()=>{});
+});
+void queueLanguage(refreshMenu).catch(()=>{});
 // A normal action click grants activeTab. Automatic side-panel toggling does not.
 chrome.action.onClicked.addListener(tab=>{
   void chrome.sidePanel.open({windowId:tab.windowId}).catch(()=>{});
@@ -82,7 +102,17 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(sender.id!==chrome.runtime.id||sender.url!==PANEL){respond({ok:false,error:'UNTRUSTED_SENDER'});return;}
   (async()=>{
     if(message.kind==='context')return context(message.text,message.binding);
-    if(message.kind==='capture')return capture();
+    if(message.kind==='capture')return capture(message.ui_language??(await uiIdentity()).language);
+    if(message.kind==='ui-language.changed'){
+      await queueLanguage(async()=>{
+        const {owner}=await uiIdentity();
+        if(owner!==(message.accountId??null))return;
+        const language=owner?normalizeUiLanguage(message.language):'zh';
+        await chrome.storage.local.set({[UI_LANGUAGE_KEY]:{owner,language}});
+        // Account changes can happen during storage IO; never show the old label.
+        await refreshMenu();
+      });return {};
+    }
     if(message.kind==='capture.cancel'){for(const binding of captures.values())cancelCapture(binding);return {};}
     throw new Error('UNKNOWN_METHOD');
   })().then(result=>respond({ok:true,result}),error=>respond({ok:false,error:error.message??'REQUEST_FAILED'}));return true;

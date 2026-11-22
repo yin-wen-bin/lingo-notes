@@ -34,8 +34,8 @@ export async function handler(request:Request):Promise<Response> {
           try{
             // A fresh check reduces the pause/delete race immediately before transmission.
             const settings=checked<any>(await db.from('lingo_settings').select('*').eq('user_id',userId).single());
-            const items=checked<any[]>(await db.from('lingo_review_items').select('card_id').eq('batch_id',batchId).eq('user_id',userId).limit(1));
-            if(!settings.review_enabled||!settings.push_enabled||!items.length)status='disabled';
+            const pending=await rpc(db,'lingo_batch_has_pending',{p_user:userId,p_batch:batchId});
+            if(!settings.review_enabled||!settings.push_enabled||!pending)status='disabled';
             else{await push(db,userId,batchId);summary.accepted++;}
           }catch(e){error=safeError(e);status=['PUSH_SUBSCRIPTION_EXPIRED','PUSH_SUBSCRIPTION_MISSING'].includes(error)?'disabled':'failed';summary.failed++;}
           await rpc(db,'lingo_finish_delivery',{p_batch:batchId,p_channel:'push',p_token:claim.claim_token,p_status:status,p_error:error});

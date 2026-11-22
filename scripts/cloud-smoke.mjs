@@ -126,7 +126,7 @@ export async function runSmoke(options){
       const body=await response.json();requireThat(response.status===401&&body.ok===false&&body.error==='LOGIN_REQUIRED','ANONYMOUS_EDGE_NOT_DENIED');
     });
     await check('deployed_contract_and_missing_key_flow',async()=>{
-      const ping=await a.cloud.call('ping');requireThat(ping.protocol==='cloud/2'&&ping.protocol_version==='lingo-cloud/2','CLOUD_CONTRACT_MISMATCH');
+      const ping=await a.cloud.call('ping');requireThat(ping.protocol==='cloud/5'&&ping.protocol_version==='lingo-cloud/5','CLOUD_CONTRACT_MISMATCH');
       requireThat((await a.cloud.call('key.status')).configured===false,'QA_KEY_NOT_EMPTY');
       const rid=recordFor(a.id);await mustReject(a.cloud.start('learning.submit',{record_id:rid,text:'Synthetic no-key request'},randomUUID(),()=>{}),'DEEPSEEK_KEY_REQUIRED');
       requireThat(await a.cloud.call('records.get',{record_id:rid})===null,'NO_KEY_REQUEST_SAVED_RECORD');

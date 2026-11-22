@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import http from 'node:http';
-import { parseRoute, readSetupLink, reviewCards, safeExternalUrl, speechContent, userError, vapidBytes } from '../pwa/src/model.mjs';
+import { dailyReviewLimit, parseRoute, readSetupLink, reviewCards, safeExternalUrl, speechContent, userError, vapidBytes } from '../pwa/src/model.mjs';
 
 test('PWA notification route survives sign-in URL and rejects arbitrary destinations', () => {
   assert.deepEqual(parseRoute('https://notes.example/?batch=batch_123&record=record-456'), { tab: 'today', batchId: 'batch_123', recordId: 'record-456' });
@@ -19,11 +19,16 @@ test('password setup accepts only explicit recovery token fragments', () => {
   assert.deepEqual(readSetupLink('https://notes.example/#token_hash=bad&token_type=recovery'), { present: true, token: null });
   assert.deepEqual(readSetupLink('https://notes.example/?batch=one'), { present: false, token: null });
 });
-test('PWA daily card limit is five without changing source batch', () => {
-  const batch = { cards: Array.from({ length: 9 }, (_, id) => ({ id })) };
-  assert.deepEqual(reviewCards(batch).map(card => card.id), [0, 1, 2, 3, 4]);
+test('PWA shows the server batch without a second limit and excludes mastered points', () => {
+  const batch = { cards: Array.from({ length: 9 }, (_, id) => ({ id, mastered: id === 3, reviewed: id === 4 })) };
+  assert.deepEqual(reviewCards(batch).map(card => card.id), [0, 1, 2, 4, 5, 6, 7, 8]);
   assert.equal(batch.cards.length, 9);
   assert.deepEqual(reviewCards(null), []);
+});
+
+test('daily review count accepts whole numbers within 1–100 only', () => {
+  for (const value of ['1', '5', '100', ' 25 ']) assert.equal(dailyReviewLimit(value), Number(value));
+  for (const value of ['', ' ', '0', '101', '-1', '1.5', '5.0', '1e2', null, 5]) assert.equal(dailyReviewLimit(value), null);
 });
 test('pronunciation reads Japanese kana but never reads English IPA as the word', () => {
   assert.deepEqual(speechContent('勉強', 'べんきょう', 'ja'), { lang: 'ja-JP', text: 'べんきょう' });

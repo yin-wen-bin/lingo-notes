@@ -23,6 +23,9 @@ async function database(t){
   await db.exec(readSql('202611190002_lingo_backup.sql'));
   await db.exec(readSql('202611190003_explanation_mode.sql'));
   await db.exec(readSql('202611200004_font_preferences.sql'));
+  await db.exec(readSql('202611200005_explanation_language.sql'));
+  await db.exec(readSql('202611210006_refined_typography.sql'));
+  await db.exec(readSql('202611220007_review_controls.sql'));
   return db;
 }
 function temp(t){const directory=mkdtempSync(join(tmpdir(),'lingo-backup-test-'));t.after(()=>{
@@ -49,7 +52,7 @@ function client(db,files=new Map()){
 async function seed(db,files,{images=1}={}){
   const user=randomUUID(),recordIDs=[],created='2026-11-19T01:00:00.000Z';
   await db.query('insert into auth.users(id,email) values($1,$2)',[user,'synthetic@example.test']);
-  await db.query("insert into lingo_settings(user_id,review_enabled,push_enabled,email_enabled,explanation_mode,font_theme) values($1,true,true,false,'fast','bookish')",[user]);
+  await db.query("insert into lingo_settings(user_id,review_enabled,push_enabled,email_enabled,explanation_mode,font_theme,explanation_language) values($1,true,true,false,'fast','bookish','ja')",[user]);
   await db.query('insert into lingo_push_subscriptions(user_id,subscription) values($1,$2)',[user,JSON.stringify({endpoint:'https://web.push.apple.com/synthetic-sensitive-endpoint',keys:{auth:'synthetic-auth'}})]);
   await db.query('select public.lingo_key_set($1,$2)',[user,'sk-'+ 'a'.repeat(32)]);
   for(let i=0;i<images;i++){
@@ -60,7 +63,7 @@ async function seed(db,files,{images=1}={}){
     await db.query('insert into lingo_requests(user_id,id,record_id,action,input_hash,status,deadline) values($1,$2,$3,$4,$5,$6,$7)',[user,request,id,'learning.recognize','synthetic-hash',i===0?'processing':'complete','2026-11-20T00:00:00Z']);
     await db.query('insert into lingo_cards(id,user_id,record_id,slot,local_date,payload) values($1,$2,$3,0,$4,$5)',[card,user,id,'2026-11-19',JSON.stringify({id:card,term:'learn'})]);
     await db.query('insert into lingo_review_batches(id,user_id,local_date) values($1,$2,$3)',[batch,user,`2026-11-${String(18-i).padStart(2,'0')}`]);
-    await db.query('insert into lingo_review_items(batch_id,card_id,user_id,position) values($1,$2,$3,1)',[batch,card,user]);
+    await db.query('insert into lingo_review_items(batch_id,card_id,user_id,position,point_key) select $1,$2,$3,1,point_key from lingo_cards where id=$2',[batch,card,user]);
     await db.query('insert into lingo_deliveries(batch_id,user_id,channel,status,claim_token) values($1,$2,$3,$4,$5)',[batch,user,'push','sending',randomUUID()]);
     files.set(path,bytes);await db.query('insert into storage.objects(name,bucket_id) values($1,$2)',[path,'lingo-images']);recordIDs.push(id);
   }
@@ -73,6 +76,42 @@ test('encrypted backup is complete only after all objects verify; excludes keys/
   const loaded=loadBackup(directory,PASSWORD),json=JSON.stringify(loaded.snapshot);
   assert.equal(json.includes('sk-'+ 'a'.repeat(32)),false);assert.equal(json.includes('synthetic-sensitive-endpoint'),false);assert.equal(json.includes('synthetic-auth'),false);assert.equal(loaded.snapshot.tables.lingo_deliveries[0].claim_token,null);loaded.key.fill(0);
   assert.throws(()=>loadBackup(directory,'wrong-password-at-least-16'),/BACKUP_AUTHENTICATION_FAILED/);
+});
+
+test('backup restores review mastery, completed rounds and a custom daily limit without re-enabling notifications',async t=>{
+  const source=await database(t),files=new Map(),{user}=await seed(source,files),directory=join(temp(t),'review-backup');
+  await source.query('update lingo_settings set review_daily_limit=17 where user_id=$1',[user]);
+  await source.query("update lingo_review_points set review_round=2,next_due_date='2026-11-27',mastered_at='2026-11-23T01:00:00Z',last_completed_at='2026-11-23T01:00:00Z' where user_id=$1",[user]);
+  await backupCloud({client:client(source,files),directory,passphrase:PASSWORD});
+  const target=await database(t);await target.query('insert into auth.users(id) values($1)',[user]);
+  const result=await restoreCloud({client:client(target),directory,passphrase:PASSWORD});
+  assert.equal(result.complete,true);
+  const restored=(await target.query('select review_round,next_due_date::text,mastered_at is not null as mastered,last_completed_at is not null as reviewed from lingo_review_points where user_id=$1',[user])).rows[0];
+  assert.deepEqual(restored,{review_round:2,next_due_date:'2026-11-27',mastered:true,reviewed:true});
+  const settings=(await target.query('select review_daily_limit,review_enabled,push_enabled from lingo_settings where user_id=$1',[user])).rows[0];
+  assert.deepEqual(settings,{review_daily_limit:17,review_enabled:false,push_enabled:false});
+});
+
+test('legacy backups derive initial review points without turning old deliveries into completed reviews',async t=>{
+  const source=await database(t),files=new Map(),{user}=await seed(source,files),directory=join(temp(t),'legacy-review-backup');
+  await source.query("update lingo_cards set last_selected_at='2026-11-21T00:00:00Z' where user_id=$1",[user]);
+  const legacy=client(source,files),rpc=legacy.rpc.bind(legacy);
+  legacy.rpc=async(name,params)=>{
+    const response=await rpc(name,params);
+    if(name==='lingo_backup_snapshot'){
+      delete response.data.tables.lingo_review_points;
+      for(const row of response.data.tables.lingo_settings)delete row.review_daily_limit;
+      for(const row of response.data.tables.lingo_cards)delete row.point_key;
+      for(const row of response.data.tables.lingo_review_items){delete row.point_key;delete row.scheduled_round;delete row.completed_at;}
+    }
+    return response;
+  };
+  await backupCloud({client:legacy,directory,passphrase:PASSWORD});
+  const target=await database(t);await target.query('insert into auth.users(id) values($1)',[user]);
+  assert.equal((await restoreCloud({client:client(target),directory,passphrase:PASSWORD})).complete,true);
+  const point=(await target.query('select review_round,next_due_date::text,mastered_at,last_completed_at from lingo_review_points where user_id=$1',[user])).rows[0];
+  assert.deepEqual(point,{review_round:0,next_due_date:'2026-11-20',mastered_at:null,last_completed_at:null});
+  assert.equal((await target.query('select review_daily_limit from lingo_settings where user_id=$1',[user])).rows[0].review_daily_limit,5);
 });
 test('tampered or missing encrypted image is rejected before target writes',async t=>{
   const source=await database(t),files=new Map(),{user}=await seed(source,files),directory=join(temp(t),'backup');
@@ -104,15 +143,15 @@ test('restore preserves IDs/images but disables reminders and interrupts all in-
   const receipt=await restoreCloud({client:dest,directory,passphrase:PASSWORD});assert.equal(receipt.complete,true);assert.equal(receipt.keys_restored,false);
   const record=(await target.query('select * from lingo_records')).rows[0];assert.equal(record.id,recordIDs[0]);assert.equal(new Date(record.local_date).toISOString().slice(0,10),'2026-11-19');assert.equal(record.payload.status,'interrupted');assert.equal(record.payload.error,'RESTORED_REQUEST_NOT_RESUMED');
   assert.equal((await target.query('select status from lingo_requests')).rows[0].status,'interrupted');
-  const settings=(await target.query('select * from lingo_settings')).rows[0];assert.equal(settings.review_enabled,false);assert.equal(settings.push_enabled,false);assert.equal(settings.email_enabled,false);assert.equal(settings.font_theme,'bookish');
+  const settings=(await target.query('select * from lingo_settings')).rows[0];assert.equal(settings.review_enabled,false);assert.equal(settings.push_enabled,false);assert.equal(settings.email_enabled,false);assert.equal(settings.font_theme,'bookish');assert.equal(settings.explanation_language,'ja');
   assert.equal((await target.query('select status from lingo_deliveries')).rows[0].status,'disabled');assert.equal(await count(target,'lingo_push_subscriptions'),0);assert.equal(await count(target,'lingo_private.user_keys'),0);
   assert.equal(hash(dest.files.get(record.image_path)),record.payload.image.sha256);
   await assert.rejects(restoreCloud({client:dest,directory,passphrase:PASSWORD}),/RESTORE_TARGET_NOT_EMPTY/);
 });
-test('existing cloud backups without font preference restore as clean and cannot revive email reminders',async t=>{
+test('existing cloud backups without font preference restore as refined and cannot revive email reminders',async t=>{
   const source=await database(t),files=new Map(),{user,recordIDs}=await seed(source,files);
   const snapshot=(await client(source,files).rpc('lingo_backup_snapshot')).data;
-  delete snapshot.tables.lingo_settings[0].font_theme;snapshot.tables.lingo_settings[0].email_enabled=true;
+  delete snapshot.tables.lingo_settings[0].font_theme;delete snapshot.tables.lingo_settings[0].explanation_language;snapshot.tables.lingo_settings[0].email_enabled=true;
   const email={...snapshot.tables.lingo_deliveries[0],channel:'email',status:'accepted',accepted_at:'2026-11-19T01:00:00.000Z'};
   snapshot.tables.lingo_deliveries.push(email);
   const target=await database(t);await target.query('insert into auth.users(id) values($1)',[user]);
@@ -120,11 +159,26 @@ test('existing cloud backups without font preference restore as clean and cannot
   const result=(await target.query('select public.lingo_restore_empty($1) as value',[JSON.stringify(snapshot)])).rows[0].value;
   assert.equal(result.restored,true);assert.equal(result.record_count,recordIDs.length);
   const settings=(await target.query('select * from lingo_settings')).rows[0];
-  assert.equal(settings.font_theme,'clean');assert.equal(settings.email_enabled,false);assert.equal(settings.review_enabled,false);assert.equal(settings.push_enabled,false);
+  assert.equal(settings.font_theme,'refined');assert.equal(settings.explanation_language,'zh');assert.equal(settings.email_enabled,false);assert.equal(settings.review_enabled,false);assert.equal(settings.push_enabled,false);
   assert.equal((await target.query('select id from lingo_records')).rows[0].id,recordIDs[0]);
   const audit=(await target.query("select status,accepted_at from lingo_deliveries where channel='email'")).rows[0];
   assert.equal(audit.status,'accepted');assert.equal(new Date(audit.accepted_at).toISOString(),email.accepted_at);
   assert.equal((await target.query("select public.lingo_claim_delivery($1,'email') as value",[email.batch_id])).rows[0].value,null);
+});
+test('restore retains all four explicit font choices and their separate explanation language',async t=>{
+  const source=await database(t),files=new Map();await seed(source,files,{images:0});
+  for(const font of ['handwritten','clean','refined']){
+    const owner=randomUUID();await source.query('insert into auth.users(id) values($1)',[owner]);
+    await source.query("insert into lingo_settings(user_id,font_theme,explanation_language) values($1,$2,'en')",[owner,font]);
+  }
+  const snapshot=(await client(source,files).rpc('lingo_backup_snapshot')).data;
+  const target=await database(t);
+  for(const row of snapshot.tables.lingo_settings)await target.query('insert into auth.users(id) values($1)',[row.user_id]);
+  const restored=(await target.query('select public.lingo_restore_empty($1) as value',[JSON.stringify(snapshot)])).rows[0].value;
+  assert.equal(restored.restored,true);
+  const actual=(await target.query('select user_id,font_theme,explanation_language from lingo_settings order by user_id')).rows;
+  const expected=snapshot.tables.lingo_settings.map(({user_id,font_theme,explanation_language})=>({user_id,font_theme,explanation_language})).sort((a,b)=>a.user_id.localeCompare(b.user_id));
+  assert.deepEqual(actual,expected);assert.deepEqual(actual.map(row=>row.font_theme).sort(),['bookish','clean','handwritten','refined']);
 });
 test('mid-upload restore failure is explicitly partial and does not insert database rows',async t=>{
   const source=await database(t),files=new Map(),{user}=await seed(source,files,{images:2}),directory=join(temp(t),'backup');await backupCloud({client:client(source,files),directory,passphrase:PASSWORD});

@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "description": "Version-pinned WOFF2 subsets for the handwritten, bookish and clean Chinese/English/Japanese font themes. Original six font families and their bytes are retained.",
+  "description": "Version-pinned WOFF2 subsets for handwritten, bookish, clean and refined Chinese/English/Japanese font themes. Original nine font families and all 1027 existing files are retained unchanged. Refined uses the Google Fonts OFL distribution of Manrope, not the separately licensed Manrope V5.",
   "fonts": [
     {
       "family": "DM Sans",
@@ -1199,6 +1199,209 @@
         "literata-9adbeac5b167.woff2"
       ],
       "bytes": 95152
+    },
+    {
+      "family": "Inter",
+      "package": "@fontsource-variable/inter",
+      "packageVersion": "5.3.0",
+      "upstreamVersion": "v20",
+      "source": "https://github.com/google/fonts",
+      "tarball": "https://registry.npmjs.org/@fontsource-variable/inter/-/inter-5.3.0.tgz",
+      "integrity": "sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==",
+      "license": {
+        "file": "licenses/inter-OFL.txt",
+        "sha256": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
+        "name": "OFL-1.1"
+      },
+      "faceCount": 2,
+      "omittedHangulFaces": 0,
+      "files": [
+        "inter-34b9c504cab7.woff2",
+        "inter-3100e775e861.woff2"
+      ],
+      "bytes": 133324,
+      "upstreamCss": "wght.css",
+      "selectedSubsets": [
+        "latin",
+        "latin-ext"
+      ]
+    },
+    {
+      "family": "Manrope",
+      "package": "@fontsource-variable/manrope",
+      "packageVersion": "5.3.0",
+      "upstreamVersion": "v20",
+      "source": "https://github.com/google/fonts",
+      "tarball": "https://registry.npmjs.org/@fontsource-variable/manrope/-/manrope-5.3.0.tgz",
+      "integrity": "sha512-6D5dgokHsWDDMtmXHznKa0hK229NN+1a4BLPmUCLqcO1Pw5EEhWY5RFt0AcXnVRAljFFPfRtLkJePQj6LSsV6g==",
+      "license": {
+        "file": "licenses/manrope-OFL.txt",
+        "sha256": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30",
+        "name": "OFL-1.1"
+      },
+      "faceCount": 2,
+      "omittedHangulFaces": 0,
+      "files": [
+        "manrope-3911b66d9f2e.woff2",
+        "manrope-a30ddcd34970.woff2"
+      ],
+      "bytes": 39956,
+      "upstreamCss": "wght.css",
+      "selectedSubsets": [
+        "latin",
+        "latin-ext"
+      ]
+    },
+    {
+      "family": "Noto Sans JP",
+      "package": "@fontsource-variable/noto-sans-jp",
+      "packageVersion": "5.3.1",
+      "upstreamVersion": "v57",
+      "source": "https://github.com/google/fonts",
+      "tarball": "https://registry.npmjs.org/@fontsource-variable/noto-sans-jp/-/noto-sans-jp-5.3.1.tgz",
+      "integrity": "sha512-/anGvJFc5y36f8DJ+3TSh2+KAvaRLA9PaLUMvneeY5s4j8m+8X4F3lE/sjTuG9YI5BX4sykvCk4TuJMG7ecMRQ==",
+      "license": {
+        "file": "licenses/noto-sans-jp-OFL.txt",
+        "sha256": "18aabf190848725e2576eefb5c29ba06aac1029d02132252a7f312eac2e50cf3",
+        "name": "OFL-1.1"
+      },
+      "faceCount": 124,
+      "omittedHangulFaces": 0,
+      "files": [
+        "noto-sans-jp-55f978b3ad66.woff2",
+        "noto-sans-jp-8d0c49e497eb.woff2",
+        "noto-sans-jp-7813bea8ff53.woff2",
+        "noto-sans-jp-13d842f33907.woff2",
+        "noto-sans-jp-490d0b9712d8.woff2",
+        "noto-sans-jp-313ea6564bdf.woff2",
+        "noto-sans-jp-dc12bd2a7d73.woff2",
+        "noto-sans-jp-da52221302eb.woff2",
+        "noto-sans-jp-7e73274091d3.woff2",
+        "noto-sans-jp-54b90fa517e3.woff2",
+        "noto-sans-jp-078448a0cce9.woff2",
+        "noto-sans-jp-6b17a02d81b4.woff2",
+        "noto-sans-jp-702f1784ef87.woff2",
+        "noto-sans-jp-972c3edac084.woff2",
+        "noto-sans-jp-02e10aba4903.woff2",
+        "noto-sans-jp-23b20d4d0f55.woff2",
+        "noto-sans-jp-4b39a064fab7.woff2",
+        "noto-sans-jp-75ebe7b94390.woff2",
+        "noto-sans-jp-d0c7657351e2.woff2",
+        "noto-sans-jp-96bc94582bd8.woff2",
+        "noto-sans-jp-5eec399a4389.woff2",
+        "noto-sans-jp-280c11f57586.woff2",
+        "noto-sans-jp-e3c47107b84f.woff2",
+        "noto-sans-jp-f1fbf7a5a012.woff2",
+        "noto-sans-jp-3a37acdabd50.woff2",
+        "noto-sans-jp-59109fe93cb1.woff2",
+        "noto-sans-jp-93c6541a290f.woff2",
+        "noto-sans-jp-ac2d565c655e.woff2",
+        "noto-sans-jp-829fb1c25f56.woff2",
+        "noto-sans-jp-610684c7d541.woff2",
+        "noto-sans-jp-8d13e9fa3e3f.woff2",
+        "noto-sans-jp-e85e928c6b70.woff2",
+        "noto-sans-jp-76062a935f0e.woff2",
+        "noto-sans-jp-846c117fb7d2.woff2",
+        "noto-sans-jp-92a60ee6d7ad.woff2",
+        "noto-sans-jp-222e1ff40b68.woff2",
+        "noto-sans-jp-bbd7bab88d38.woff2",
+        "noto-sans-jp-9830cb8ed9ae.woff2",
+        "noto-sans-jp-9fed33a68aaa.woff2",
+        "noto-sans-jp-1c4f030d4a92.woff2",
+        "noto-sans-jp-bc5605374890.woff2",
+        "noto-sans-jp-cc55968d557c.woff2",
+        "noto-sans-jp-4742534144fa.woff2",
+        "noto-sans-jp-6588d64e637a.woff2",
+        "noto-sans-jp-6ff484457c3f.woff2",
+        "noto-sans-jp-4ed87893d252.woff2",
+        "noto-sans-jp-6a2383f69ea1.woff2",
+        "noto-sans-jp-e08eeaee07af.woff2",
+        "noto-sans-jp-d7b4a8e4ea53.woff2",
+        "noto-sans-jp-fe62957e5666.woff2",
+        "noto-sans-jp-cc5454ba0e72.woff2",
+        "noto-sans-jp-d978ffe7cda0.woff2",
+        "noto-sans-jp-4fe778dad741.woff2",
+        "noto-sans-jp-1a6a654c4300.woff2",
+        "noto-sans-jp-e3989740a877.woff2",
+        "noto-sans-jp-ae90d39c8e98.woff2",
+        "noto-sans-jp-7984e5951fad.woff2",
+        "noto-sans-jp-16cb78007889.woff2",
+        "noto-sans-jp-5d0685f08acf.woff2",
+        "noto-sans-jp-7d29d9f58388.woff2",
+        "noto-sans-jp-e9155b6c0498.woff2",
+        "noto-sans-jp-0d41d2c75761.woff2",
+        "noto-sans-jp-16aa9414e54f.woff2",
+        "noto-sans-jp-78a6d1597cae.woff2",
+        "noto-sans-jp-e2d4027723fa.woff2",
+        "noto-sans-jp-eab9d56485fc.woff2",
+        "noto-sans-jp-6b9b03a5f1c7.woff2",
+        "noto-sans-jp-0deff73ff4c2.woff2",
+        "noto-sans-jp-a251b0975a8a.woff2",
+        "noto-sans-jp-060df0b3ff95.woff2",
+        "noto-sans-jp-4357f1ced5e8.woff2",
+        "noto-sans-jp-bc67dedf5473.woff2",
+        "noto-sans-jp-0b183634ac33.woff2",
+        "noto-sans-jp-7eb20e03471b.woff2",
+        "noto-sans-jp-5d7d5d550296.woff2",
+        "noto-sans-jp-886a9fe77b90.woff2",
+        "noto-sans-jp-c676893087a2.woff2",
+        "noto-sans-jp-0576573ee39b.woff2",
+        "noto-sans-jp-7bbb9124201e.woff2",
+        "noto-sans-jp-e92af94fb516.woff2",
+        "noto-sans-jp-b1e3bcfae9db.woff2",
+        "noto-sans-jp-9e6b8f448697.woff2",
+        "noto-sans-jp-38bdce46b9ca.woff2",
+        "noto-sans-jp-9d07de3c886a.woff2",
+        "noto-sans-jp-34f9bb151947.woff2",
+        "noto-sans-jp-9555ca3c3e95.woff2",
+        "noto-sans-jp-0e6e03d20727.woff2",
+        "noto-sans-jp-b95cee9ae535.woff2",
+        "noto-sans-jp-031476ff358d.woff2",
+        "noto-sans-jp-49ce40b325dc.woff2",
+        "noto-sans-jp-98e1708d126e.woff2",
+        "noto-sans-jp-e1fd8dda3c24.woff2",
+        "noto-sans-jp-f8c808a6d9f7.woff2",
+        "noto-sans-jp-814636ff75c8.woff2",
+        "noto-sans-jp-b4cdf0203390.woff2",
+        "noto-sans-jp-a5d77d839af3.woff2",
+        "noto-sans-jp-ccf139ce62b0.woff2",
+        "noto-sans-jp-bf6a8fd77c92.woff2",
+        "noto-sans-jp-606cdec94b2e.woff2",
+        "noto-sans-jp-6e7ef59f4b5e.woff2",
+        "noto-sans-jp-ebd0b58e4285.woff2",
+        "noto-sans-jp-7f678d488342.woff2",
+        "noto-sans-jp-cc20c986d54a.woff2",
+        "noto-sans-jp-0fb1365f11f4.woff2",
+        "noto-sans-jp-bf2d4809fe1a.woff2",
+        "noto-sans-jp-35735498a219.woff2",
+        "noto-sans-jp-835b976dad27.woff2",
+        "noto-sans-jp-c41523b6bb43.woff2",
+        "noto-sans-jp-9e288e859248.woff2",
+        "noto-sans-jp-f5861b584d08.woff2",
+        "noto-sans-jp-d264b7fb4eb8.woff2",
+        "noto-sans-jp-add77686e506.woff2",
+        "noto-sans-jp-1a41a1e026f0.woff2",
+        "noto-sans-jp-030dfa6fc4f0.woff2",
+        "noto-sans-jp-ce324843172a.woff2",
+        "noto-sans-jp-5a2b7c813f01.woff2",
+        "noto-sans-jp-30425125bb74.woff2",
+        "noto-sans-jp-a4cb052e82a4.woff2",
+        "noto-sans-jp-df20f01d9fa1.woff2",
+        "noto-sans-jp-2c0a698f3f84.woff2",
+        "noto-sans-jp-91e663eb9478.woff2",
+        "noto-sans-jp-577779334e2d.woff2",
+        "noto-sans-jp-413b7b8ab51a.woff2",
+        "noto-sans-jp-b3f23a841571.woff2"
+      ],
+      "bytes": 5473652,
+      "upstreamCss": "wght.css",
+      "selectedSubsets": [
+        "cyrillic",
+        "japanese",
+        "latin",
+        "latin-ext",
+        "vietnamese"
+      ]
     }
   ],
   "files": [
@@ -8390,6 +8593,902 @@
       "bytes": 52496,
       "family": "Literata",
       "weight": "400 600"
+    },
+    {
+      "path": "fonts/inter-34b9c504cab7.woff2",
+      "sha256": "34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956",
+      "bytes": 85068,
+      "family": "Inter",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/inter-3100e775e861.woff2",
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+      "bytes": 48256,
+      "family": "Inter",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/manrope-3911b66d9f2e.woff2",
+      "sha256": "3911b66d9f2e005a4b989223405d0e5032619c668597ba467cc76a23c8fffcfb",
+      "bytes": 15120,
+      "family": "Manrope",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/manrope-a30ddcd34970.woff2",
+      "sha256": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+      "bytes": 24836,
+      "family": "Manrope",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-55f978b3ad66.woff2",
+      "sha256": "55f978b3ad66343447335495698654e983af082360fbb8068c9bebf139de6830",
+      "bytes": 83448,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-8d0c49e497eb.woff2",
+      "sha256": "8d0c49e497eb628d5f68c5bb1b7c0363f97d0c87cccdc87e4bc07f20843de0de",
+      "bytes": 70756,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-7813bea8ff53.woff2",
+      "sha256": "7813bea8ff5334f30fcc8a757822e5d1e373cd4981b3d6a2a2fad7574b6a07e8",
+      "bytes": 32024,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-13d842f33907.woff2",
+      "sha256": "13d842f33907345f6112c6b61d1d7e4b478400c8b4d8d4b58f60a5b772cbcd18",
+      "bytes": 43404,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-490d0b9712d8.woff2",
+      "sha256": "490d0b9712d8a54aeacc9b22782625a9188b42f7fa9f345fce6ce34385b1b67b",
+      "bytes": 76904,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-313ea6564bdf.woff2",
+      "sha256": "313ea6564bdf6b2c828e11c349fd0bb1c20584843780bcc8e8df970a94ac9bda",
+      "bytes": 90632,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-dc12bd2a7d73.woff2",
+      "sha256": "dc12bd2a7d73cee082d5435d7608626b845d2f65dfdfef298a29229c0d77d535",
+      "bytes": 92752,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-da52221302eb.woff2",
+      "sha256": "da52221302eb4c831009eb0c5cc343b5e8a1c925a09778ae84c3f80ddb206088",
+      "bytes": 86508,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-7e73274091d3.woff2",
+      "sha256": "7e73274091d31a4606fc5d117bef91073f4afa353f54bd6ab92a234225721d69",
+      "bytes": 81380,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-54b90fa517e3.woff2",
+      "sha256": "54b90fa517e383dab3fb341d4b57742605d62492232ea9a0b39bda77372da01e",
+      "bytes": 78196,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-078448a0cce9.woff2",
+      "sha256": "078448a0cce934a71bf3201953cfd3454ede7a161d0c0d5a3208fa10f4dd67c8",
+      "bytes": 77916,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-6b17a02d81b4.woff2",
+      "sha256": "6b17a02d81b4f47eec8002d7c56529fa18d4ce87fdaf428cc324b0bc6d6fdc81",
+      "bytes": 76936,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-702f1784ef87.woff2",
+      "sha256": "702f1784ef87567508a9ec026169b5873bfe9186f587de9be6cef5b1d9c73764",
+      "bytes": 69908,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-972c3edac084.woff2",
+      "sha256": "972c3edac08421e88cac88664912d3ca1faba69d70b545bb30a8830bb4838cce",
+      "bytes": 75792,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-02e10aba4903.woff2",
+      "sha256": "02e10aba49039befb81229d989d4c51feffaaab976ba195d86d0392ecf088401",
+      "bytes": 74236,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-23b20d4d0f55.woff2",
+      "sha256": "23b20d4d0f55ad7df6b41e4538c2295fb2c0f7374495e901384337b636191b8d",
+      "bytes": 82496,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-4b39a064fab7.woff2",
+      "sha256": "4b39a064fab7979c908c8a2b2ff2ac99f7066a78c365a9029ea06c4c108f854a",
+      "bytes": 71096,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-75ebe7b94390.woff2",
+      "sha256": "75ebe7b943901ce15da3af3491711a14ff46510de8a793e29842d4780ab14a76",
+      "bytes": 85452,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-d0c7657351e2.woff2",
+      "sha256": "d0c7657351e2464343bc75a8b1b24b69a5cd856fe90e18f655cddd1e0694fa85",
+      "bytes": 80760,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-96bc94582bd8.woff2",
+      "sha256": "96bc94582bd8f4aa6b214caf5e74b663ac9fe7c7fa194125325657dcceea17ec",
+      "bytes": 89364,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-5eec399a4389.woff2",
+      "sha256": "5eec399a438926ec363c34428881520a1495ff8be9fe882c2d78b15b07fa1966",
+      "bytes": 64320,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-280c11f57586.woff2",
+      "sha256": "280c11f5758638c1afc8f6265eef580f14046b656e7383a6834f81783b0884f7",
+      "bytes": 74584,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-e3c47107b84f.woff2",
+      "sha256": "e3c47107b84fa9ade38b11bc22a54510e387487df9df000921492e08034cdaf6",
+      "bytes": 79644,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-f1fbf7a5a012.woff2",
+      "sha256": "f1fbf7a5a012b41a2b10f943cd88a9aed44a61bc58f6be79538417f504e175c1",
+      "bytes": 80124,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-3a37acdabd50.woff2",
+      "sha256": "3a37acdabd50b348ad0e0065ebda5c22c2d15718786e65d9610aa26f16bbd132",
+      "bytes": 85072,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-59109fe93cb1.woff2",
+      "sha256": "59109fe93cb16d7c8cd59f086cfd2e5031c60497997c3b3e0b41386f7e203da6",
+      "bytes": 81820,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-93c6541a290f.woff2",
+      "sha256": "93c6541a290f68c1043f84dcc5ba6d6de9852555b3a6f6702dae60edb87ab532",
+      "bytes": 69724,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-ac2d565c655e.woff2",
+      "sha256": "ac2d565c655e567b88df81e8834fec61f7a0944062f8ee51b70aa77a797b3702",
+      "bytes": 65452,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-829fb1c25f56.woff2",
+      "sha256": "829fb1c25f56f28b3564c869a4285f5163b653916fd50b0be65e63c2decf63c2",
+      "bytes": 72800,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-610684c7d541.woff2",
+      "sha256": "610684c7d54177a0a03045acf04e4af0129d41227bcb9d37221f5a2be9d9876a",
+      "bytes": 79524,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-8d13e9fa3e3f.woff2",
+      "sha256": "8d13e9fa3e3f8af4e9374895bc3c724f7d6f7062bdc65ab00ec7ac3534d698e5",
+      "bytes": 82796,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-e85e928c6b70.woff2",
+      "sha256": "e85e928c6b709b9f987e664bc604d493ab5b9476e9d33f88c2dac117d4751f49",
+      "bytes": 89176,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-76062a935f0e.woff2",
+      "sha256": "76062a935f0eaa917094803adb5f1123396806846110db3465f343912f2b7c50",
+      "bytes": 76488,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-846c117fb7d2.woff2",
+      "sha256": "846c117fb7d2d2093c14c9a60c1e82642f2a0224d8e107e60756a0f3304e7431",
+      "bytes": 66088,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-92a60ee6d7ad.woff2",
+      "sha256": "92a60ee6d7ad2fd3cf0f1362c0291dbd4f84e83e9e2d7d82c1bb903f79a327a6",
+      "bytes": 88292,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-222e1ff40b68.woff2",
+      "sha256": "222e1ff40b6870caea4ca4542662c88dae8dcb25081a5b2f599eb4f3db0d83e2",
+      "bytes": 73572,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-bbd7bab88d38.woff2",
+      "sha256": "bbd7bab88d38291e16b44cb5393200f6bbc26dda1277d86508488163f4e3247f",
+      "bytes": 65712,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-9830cb8ed9ae.woff2",
+      "sha256": "9830cb8ed9aebed1e79ae87ca770a3735503ba33ba902e7caf1a7f301ee3839a",
+      "bytes": 76296,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-9fed33a68aaa.woff2",
+      "sha256": "9fed33a68aaa37c3712c0f94656f92661b1485dec920727dc48b9bf3417fe869",
+      "bytes": 70356,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-1c4f030d4a92.woff2",
+      "sha256": "1c4f030d4a923cce7ff907ddf8118a174fa2a8b8f9c4428df162b828fb09c2a9",
+      "bytes": 75600,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-bc5605374890.woff2",
+      "sha256": "bc56053748906bdee2971a3b68452bff41b049dfb8374c99d1cf21f255e21e1c",
+      "bytes": 65716,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-cc55968d557c.woff2",
+      "sha256": "cc55968d557c21f986e3f07139af37b2bf4b3520306e1329107accaddf0e2817",
+      "bytes": 79272,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-4742534144fa.woff2",
+      "sha256": "4742534144fae58cd49471117bcbec6df46612b226d8f30df576d9bc4c7dac9f",
+      "bytes": 65904,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-6588d64e637a.woff2",
+      "sha256": "6588d64e637a54d3b0b86772121d6fa2ffc441e271e597bf0ad4522c0bc5a127",
+      "bytes": 72172,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-6ff484457c3f.woff2",
+      "sha256": "6ff484457c3f66f17ec43983632b6217fe72bd92454b71059af73e0188b9aeb0",
+      "bytes": 74376,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-4ed87893d252.woff2",
+      "sha256": "4ed87893d252fd7ed9fdf20d0e46f1e2899c3b83d46a9fd12d2267e9aa2f7b10",
+      "bytes": 69120,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-6a2383f69ea1.woff2",
+      "sha256": "6a2383f69ea1c2a737836dc7ad18cd778c388716890d54926754015fa5dc3fc1",
+      "bytes": 60008,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-e08eeaee07af.woff2",
+      "sha256": "e08eeaee07af79b1a0e13fb6a792be3a9aabe7c1aa012e6b8413e1b6b7171982",
+      "bytes": 70804,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-d7b4a8e4ea53.woff2",
+      "sha256": "d7b4a8e4ea5396f4150fe1b5dd938c36f2b0b623fc2bb16e4ce78a89abd2aa3b",
+      "bytes": 74976,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-fe62957e5666.woff2",
+      "sha256": "fe62957e56664b562153beb1cf3d9a8badbee6c9d41b8eda273df93c52f1e8e7",
+      "bytes": 62512,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-cc5454ba0e72.woff2",
+      "sha256": "cc5454ba0e72d0920aefea4d776d6569ad1efacdece506b049a38f17e1fe1ceb",
+      "bytes": 60672,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-d978ffe7cda0.woff2",
+      "sha256": "d978ffe7cda0c73bba55ccaec085da12ce7f0d6cf8a380fb10fce2256d4faef0",
+      "bytes": 57624,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-4fe778dad741.woff2",
+      "sha256": "4fe778dad741964e96f71b25877f468514ec6e08ad1c7ce8dd7aa8e6fdbc326f",
+      "bytes": 74704,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-1a6a654c4300.woff2",
+      "sha256": "1a6a654c4300c519a1258e589aede861dfc1e4740e5692cfe0cafb3b08c9c07e",
+      "bytes": 38300,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-e3989740a877.woff2",
+      "sha256": "e3989740a8776e342dcb2b32689c29db3766204ca2328ca0f0e2dc8453c72376",
+      "bytes": 31060,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-ae90d39c8e98.woff2",
+      "sha256": "ae90d39c8e98aae88879a98c2465a1ceedfebafdc6737d581c7d0cb04d083834",
+      "bytes": 42160,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-7984e5951fad.woff2",
+      "sha256": "7984e5951fadbca7bf30912f353acf02d57d23499f97f7cb002ac0830b03eb95",
+      "bytes": 37332,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-16cb78007889.woff2",
+      "sha256": "16cb780078894b647fc4554e22c97cb7b260f865c8b83399971aa6df89b18617",
+      "bytes": 10500,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-5d0685f08acf.woff2",
+      "sha256": "5d0685f08acf2143a54bbeb1acf40d636c649180540eda65b643583c085c62bf",
+      "bytes": 25144,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-7d29d9f58388.woff2",
+      "sha256": "7d29d9f583882cb5f3dc9e944d58aa1575cef5b4f884177673944394bcf6f858",
+      "bytes": 19732,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-e9155b6c0498.woff2",
+      "sha256": "e9155b6c04982ce0e84b31cd26c2434bd682e5d20f8b122a6e0cb62c9d9d5952",
+      "bytes": 25344,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-0d41d2c75761.woff2",
+      "sha256": "0d41d2c757611d16f94de5522cba7cb9046df4da901b7719deabea03f5335530",
+      "bytes": 21896,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-16aa9414e54f.woff2",
+      "sha256": "16aa9414e54ffc85cc0a74960fa48fde7a7298c36cda688a9a630134dcfc768e",
+      "bytes": 21500,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-78a6d1597cae.woff2",
+      "sha256": "78a6d1597caec21f2e6aa2105c080c83eec3d2331adbb8be6f1c9569e83664a4",
+      "bytes": 21084,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-e2d4027723fa.woff2",
+      "sha256": "e2d4027723fa4b57bfd3fe39103ae76b8070f39dd055b22f743b971aea07c1ef",
+      "bytes": 27260,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-eab9d56485fc.woff2",
+      "sha256": "eab9d56485fcd7cb1553e00d36b79641b0fd1534de0a96895ef426a1b01b01da",
+      "bytes": 22184,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-6b9b03a5f1c7.woff2",
+      "sha256": "6b9b03a5f1c7fca919b6c4ec6fbb93f4707f9f207299aaa7f12bdaa639a11566",
+      "bytes": 20932,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-0deff73ff4c2.woff2",
+      "sha256": "0deff73ff4c2c0fec1a56145ca7943f92bbe1858ba1023774915aff801a6b8ab",
+      "bytes": 19436,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-a251b0975a8a.woff2",
+      "sha256": "a251b0975a8a072d638c3ec37187ec5a319ca54697daf65e249cb2d694fb9baf",
+      "bytes": 23404,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-060df0b3ff95.woff2",
+      "sha256": "060df0b3ff95ba4f6cef3b77d5721bdd6098dbeedea598738b203928b761b881",
+      "bytes": 20956,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-4357f1ced5e8.woff2",
+      "sha256": "4357f1ced5e89060b783067f9ca90a065c6be9a0460db34247f1bc0fc7b2ba11",
+      "bytes": 21668,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-bc67dedf5473.woff2",
+      "sha256": "bc67dedf5473be5cdf05a28d669a0a2ada8951cfbe385d249b05602e123e7178",
+      "bytes": 22188,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-0b183634ac33.woff2",
+      "sha256": "0b183634ac332ebea7421b4d7c262e00c7bf9d0fb9db3081c1b69f2848dbf5dd",
+      "bytes": 22912,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-7eb20e03471b.woff2",
+      "sha256": "7eb20e03471bdb537d9dce7d93f076733dedab4b77941e74523ce3a4c3ccf333",
+      "bytes": 21888,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-5d7d5d550296.woff2",
+      "sha256": "5d7d5d55029636a2ad6c03f638c1c85ac0d2fca53e03c6ae0c11553c81b53bac",
+      "bytes": 20788,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-886a9fe77b90.woff2",
+      "sha256": "886a9fe77b9057b09424ef9d9cdd0bc5f943b78023ed649618815faf256b5122",
+      "bytes": 21724,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-c676893087a2.woff2",
+      "sha256": "c676893087a2ab759dbc479b3bbb9a612d6cf52904ed53457d3ae791d69c4396",
+      "bytes": 20528,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-0576573ee39b.woff2",
+      "sha256": "0576573ee39bf32a3746449eb2d74d53b4c7373c41ffb59eaf7d59d7aaa7061c",
+      "bytes": 19732,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-7bbb9124201e.woff2",
+      "sha256": "7bbb9124201e6aaefe814ac7b87e426908890e5f1d3e175ad2762c6548059c0c",
+      "bytes": 23100,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-e92af94fb516.woff2",
+      "sha256": "e92af94fb5167ac274bfbb2d4aef5f101313f6fd34cd26273bf9cc3b2a1e6fe8",
+      "bytes": 22284,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-b1e3bcfae9db.woff2",
+      "sha256": "b1e3bcfae9dbe224eef09e63c0993b95a2dd2cc779b1008651179cc59b260ccc",
+      "bytes": 20428,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-9e6b8f448697.woff2",
+      "sha256": "9e6b8f448697c1edf980822a1e5258d559b6dd16e384e77bde5a430bf854cb63",
+      "bytes": 20056,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-38bdce46b9ca.woff2",
+      "sha256": "38bdce46b9ca712c3121aacd47b1f8566247800f25fe3b3dfc0385eb3c879530",
+      "bytes": 21616,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-9d07de3c886a.woff2",
+      "sha256": "9d07de3c886aaabc811ec1f7a0a2eb3138de7611984c48d3f41ddeba8d567dc1",
+      "bytes": 21280,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-34f9bb151947.woff2",
+      "sha256": "34f9bb1519473eaf6b0b7af3278dd057d238e2da348137a03e42548f39e7bb79",
+      "bytes": 21112,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-9555ca3c3e95.woff2",
+      "sha256": "9555ca3c3e95bdbf0d1cfa1a831d296176385f9ef9e4eb7943ed56ecacad1343",
+      "bytes": 19164,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-0e6e03d20727.woff2",
+      "sha256": "0e6e03d20727710f0ad345aec3b5cabeb3b1b6a5f9fc2fa849586b65e8c725e0",
+      "bytes": 19256,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-b95cee9ae535.woff2",
+      "sha256": "b95cee9ae53563a52cd5334d7d493c37bebd92e5b55766c6631837dcd6157179",
+      "bytes": 22160,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-031476ff358d.woff2",
+      "sha256": "031476ff358dc72190bdaf3fdc78de6009ca6fccb9410cc93e92dd686102c796",
+      "bytes": 19776,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-49ce40b325dc.woff2",
+      "sha256": "49ce40b325dc2be957cc079f2ab1a4c7f864d59a96381d50f1cc71e88c1580ea",
+      "bytes": 20248,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-98e1708d126e.woff2",
+      "sha256": "98e1708d126eec4f6aabad038cd7774341e738f8826a5e27f3c903b788442eaf",
+      "bytes": 22120,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-e1fd8dda3c24.woff2",
+      "sha256": "e1fd8dda3c24bce06821ae3c2c689b3b4342e7de53d43d5141db3e5db9ff2391",
+      "bytes": 21932,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-f8c808a6d9f7.woff2",
+      "sha256": "f8c808a6d9f73fb7ada3239f23a249f23e2b448797fce83592d48aecb75ff7ad",
+      "bytes": 21048,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-814636ff75c8.woff2",
+      "sha256": "814636ff75c8a68fa6dd317bcea34ea440a22d795cd78653f161caed3af275a3",
+      "bytes": 19544,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-b4cdf0203390.woff2",
+      "sha256": "b4cdf020339037cc8a67e059752b5bb5fdb23ff0a67213631e4056d4e85bf2b3",
+      "bytes": 22116,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-a5d77d839af3.woff2",
+      "sha256": "a5d77d839af33d7a6525369988d9eb7e681fa73de4d68adb04a5bd507ea3c824",
+      "bytes": 20296,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-ccf139ce62b0.woff2",
+      "sha256": "ccf139ce62b0e9aa0dc62ac5631d00119143bfb6947308e67f868ed66a9af47f",
+      "bytes": 22124,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-bf6a8fd77c92.woff2",
+      "sha256": "bf6a8fd77c9286c9e4659e63f1ff99bc4122a931e3af28087759c560cef2de33",
+      "bytes": 19920,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-606cdec94b2e.woff2",
+      "sha256": "606cdec94b2e48044579accc72c4fad8e35dcea1b2c0daa9c978563d2f9c7f68",
+      "bytes": 20976,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-6e7ef59f4b5e.woff2",
+      "sha256": "6e7ef59f4b5e50828a96d13dce0027cba640e40bfc34971f6f6b0b7050e7bcd3",
+      "bytes": 21592,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-ebd0b58e4285.woff2",
+      "sha256": "ebd0b58e4285446db646c1e0844338128ca992419a48f2e78ff69ecbff26c788",
+      "bytes": 22876,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-7f678d488342.woff2",
+      "sha256": "7f678d4883427c76347935c7b4bd28abbcab44d3e30040c42594575de02e89bf",
+      "bytes": 18324,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-cc20c986d54a.woff2",
+      "sha256": "cc20c986d54a91c49740e274693030fe0fa34f060113f36f6735afad2c53c77c",
+      "bytes": 20824,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-0fb1365f11f4.woff2",
+      "sha256": "0fb1365f11f4192357ffdb086684021e48cfe0101b4f38b0a7d29d15dadffe1a",
+      "bytes": 18524,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-bf2d4809fe1a.woff2",
+      "sha256": "bf2d4809fe1a35222dae76bd03837f8e2f7ac88886b2641c2ac3c10bdb39422a",
+      "bytes": 19988,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-35735498a219.woff2",
+      "sha256": "35735498a219c4868aadec66825918b38c09ce38695a755b7e2e4be04feb072b",
+      "bytes": 18960,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-835b976dad27.woff2",
+      "sha256": "835b976dad277177ff042d8aa3cc6c1645c9297afa0b8b53dfc8abeb363e8b74",
+      "bytes": 23808,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-c41523b6bb43.woff2",
+      "sha256": "c41523b6bb431cbeea7721009dc07164a9b06a7f3b57934d40ee00326ec3e341",
+      "bytes": 18784,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-9e288e859248.woff2",
+      "sha256": "9e288e859248aa2c18a79d137a530b6dbc970286b4c41bf68e03e533cc5d89a8",
+      "bytes": 21484,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-f5861b584d08.woff2",
+      "sha256": "f5861b584d084262ffbca3f362a9c3b5b27b477e3e33f1de340ca61fa4f624b1",
+      "bytes": 16552,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-d264b7fb4eb8.woff2",
+      "sha256": "d264b7fb4eb86901d0800d80d069b6940b6686f9929dd14909354d39d47205ad",
+      "bytes": 17796,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-add77686e506.woff2",
+      "sha256": "add77686e5062903172d2ecbfa58a30c5bc3fabe23c7ea23723a5ded26353e45",
+      "bytes": 18860,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-1a41a1e026f0.woff2",
+      "sha256": "1a41a1e026f03712cf0bcd3f80e24eb3cdbeec72e6fad8eed8b25f1bdb8628a2",
+      "bytes": 17372,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-030dfa6fc4f0.woff2",
+      "sha256": "030dfa6fc4f0b364ea1a0eb7142f5d9139bea82c77b0c355d6005871f0f5be95",
+      "bytes": 16488,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-ce324843172a.woff2",
+      "sha256": "ce324843172afe1f1fd37760edd73c97e5c5611fe985402735b91e1f5341e859",
+      "bytes": 16632,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-5a2b7c813f01.woff2",
+      "sha256": "5a2b7c813f0122dc0180fd0752420cec278fa663158691458666bd987a7e241a",
+      "bytes": 19744,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-30425125bb74.woff2",
+      "sha256": "30425125bb740642a2e23f4eafc507988e7005f2a3de2efd70b2c4d6d44e2fe2",
+      "bytes": 17320,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-a4cb052e82a4.woff2",
+      "sha256": "a4cb052e82a4e5b2bdbd73a24771971e46013e76adb24c433ada6d20782702be",
+      "bytes": 13084,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-df20f01d9fa1.woff2",
+      "sha256": "df20f01d9fa1c1d10485d4a6aea5dba2c9601c9c4cf6d7c4419c34da7ba7e463",
+      "bytes": 18372,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-2c0a698f3f84.woff2",
+      "sha256": "2c0a698f3f840c00421ab992d6415841bc551258e3bfe227b30145a886f6ef42",
+      "bytes": 79064,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-91e663eb9478.woff2",
+      "sha256": "91e663eb94782da1c9737d270b75e781135a79ad582a04bbbdc443aa11cc9a93",
+      "bytes": 9916,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-577779334e2d.woff2",
+      "sha256": "577779334e2df09e505fd97caa6f3d1e7e30de9eed52ab1e95af7e74816d6aac",
+      "bytes": 9024,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-413b7b8ab51a.woff2",
+      "sha256": "413b7b8ab51aacac486c73d9095881b724cbee415004c1b0807323fc79f6960e",
+      "bytes": 8172,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
+    },
+    {
+      "path": "fonts/noto-sans-jp-b3f23a841571.woff2",
+      "sha256": "b3f23a841571a12f26a2611c0a54503b29db4a861ed23070f97279dd0d8debba",
+      "bytes": 24624,
+      "family": "Noto Sans JP",
+      "weight": "500 600"
     }
   ]
 }

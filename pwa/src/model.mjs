@@ -15,9 +15,23 @@ export function readSetupLink(value) {
   const valid = present && params.get('token_type') === 'recovery' && typeof token === 'string' && /^[A-Za-z0-9_-]{20,512}$/.test(token);
   return { present, token: valid ? token : null };
 }
-export function reviewCards(batch) { return Array.isArray(batch?.cards) ? batch.cards.slice(0, 5) : []; }
-export function languageLabel(language) { return language === 'ja' ? '日语' : language === 'en' ? '英语' : '英日语'; }
+export function reviewCards(batch) { return Array.isArray(batch?.cards) ? batch.cards.filter(card => !card.mastered) : []; }
+export function dailyReviewLimit(value) {
+  if (typeof value !== 'string' || !/^\d+$/.test(value.trim())) return null;
+  const limit = Number(value.trim());
+  return Number.isInteger(limit) && limit >= 1 && limit <= 100 ? limit : null;
+}
+export function languageLabel(language) { return language === 'ja' ? '日语' : language === 'en' ? '英语' : language === 'zh' ? '中文' : '英日语'; }
+export function explanationLang(language) { return language === 'ja' || language === 'en' ? language : 'zh-CN'; }
+export function reviewTerm(card) {
+  const language = card.term_language || card.language;
+  // A grammar title can use a different language from its source examples.
+  // Never read that title using source-language kana or IPA metadata.
+  const reading = !card.term_language || card.term_language === card.language ? card.reading || '' : '';
+  return { language, reading };
+}
 export function speechContent(text, reading, language) {
+  if (language === 'zh') return { lang: 'zh-CN', text: text.trim() };
   const japanese = language === 'ja' || (language === 'mixed' && /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(text));
   return { lang: japanese ? 'ja-JP' : 'en-US', text: japanese && reading?.trim() ? reading.trim() : text.trim() };
 }
@@ -38,6 +52,10 @@ export function userError(error) {
     FETCH_FAILED: '暂时无法连接，请检查网络后重试。', KEY_INVALID: 'Key 未通过验证，请检查后重新填写。',
     PUSH_NOT_CONFIGURED: '通知服务尚未就绪，请稍后再试。',
     TIMEOUT: '连接超时，请稍后重试。',
+    CARD_CHANGED: '学习内容已更新，请刷新后重试。', REVIEW_ITEM_NOT_FOUND: '学习内容已更新，请刷新后重试。',
+    REVIEW_STATE_UNCONFIRMED: '尚未确认复习状态已保存，请刷新后重试。',
+    REVIEW_LIMIT_NOT_CONFIRMED: '尚未确认每日数量已保存，请稍后重试。',
+    INVALID_SETTINGS: '设置没有保存，请检查输入后重试。',
   };
   return messages[code] || '操作没有完成，请稍后重试。';
 }

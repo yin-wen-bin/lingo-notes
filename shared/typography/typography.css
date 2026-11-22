@@ -1,5 +1,27 @@
 @import './fonts.css';
 
+:root,
+html[data-font-theme='refined'] {
+  --font-ui: 'Inter', 'Noto Sans SC', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  --font-ui-ja: 'Inter', 'Noto Sans JP', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Yu Gothic', sans-serif;
+  --font-ui-heading: 'Manrope', 'Noto Sans SC', 'Noto Sans JP', sans-serif;
+  --font-ui-heading-ja: 'Manrope', 'Noto Sans JP', 'Noto Sans SC', sans-serif;
+  --font-ui-button: var(--font-ui-heading);
+  --font-ui-button-ja: var(--font-ui-heading-ja);
+  --font-learning-zh: var(--font-ui);
+  --font-learning-en: var(--font-ui);
+  --font-learning-ja: var(--font-ui-ja);
+  --font-learning-title-zh: var(--font-ui-heading);
+  --font-learning-title-en: var(--font-ui-heading);
+  --font-learning-title-ja: var(--font-ui-heading-ja);
+  --font-body-weight: 500;
+  --font-heading-weight: 600;
+  --font-button-weight: 500;
+  --font-title-zh-weight: 600;
+  --font-title-en-weight: 600;
+  --font-title-ja-weight: 600;
+}
+
 html[data-font-theme='handwritten'] {
   --font-ui: 'Lora', 'LXGW WenKai Screen', 'Klee One', 'Noto Sans SC', serif;
   --font-ui-ja: 'Lora', 'Klee One', 'LXGW WenKai Screen', 'Noto Sans SC', serif;
@@ -26,7 +48,6 @@ html[data-font-theme='bookish'] {
   --font-title-ja-weight: 600;
 }
 
-:root,
 html[data-font-theme='clean'] {
   --font-ui: 'DM Sans', 'Noto Sans SC', 'Zen Kaku Gothic New', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
   --font-ui-ja: 'DM Sans', 'Zen Kaku Gothic New', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Yu Gothic', sans-serif;
@@ -38,6 +59,19 @@ html[data-font-theme='clean'] {
   --font-title-zh-weight: 600;
   --font-title-en-weight: 600;
   --font-title-ja-weight: 500;
+}
+
+html[data-font-theme='handwritten'],
+html[data-font-theme='bookish'],
+html[data-font-theme='clean'] {
+  --font-ui-heading: var(--font-ui);
+  --font-ui-heading-ja: var(--font-ui-ja);
+  --font-ui-button: var(--font-ui);
+  --font-ui-button-ja: var(--font-ui-ja);
+  --font-learning-title-zh: var(--font-learning-zh);
+  --font-learning-title-en: var(--font-learning-en);
+  --font-learning-title-ja: var(--font-learning-ja);
+  --font-body-weight: 400;
 }
 
 :root {
@@ -56,6 +90,7 @@ html[data-font-theme='clean'] {
 
 .learning-text {
   font-family: var(--font-learning-zh);
+  font-weight: var(--font-body-weight);
   font-synthesis: none;
 }
 
@@ -72,18 +107,22 @@ html[data-font-theme='clean'] {
 }
 
 .learning-title {
+  font-family: var(--font-learning-title-zh);
   font-weight: var(--font-title-zh-weight);
 }
 
 .learning-title:lang(ja) {
+  font-family: var(--font-learning-title-ja);
   font-weight: var(--font-title-ja-weight);
 }
 
 .learning-title:lang(zh) {
+  font-family: var(--font-learning-title-zh);
   font-weight: var(--font-title-zh-weight);
 }
 
 .learning-title:lang(en) {
+  font-family: var(--font-learning-title-en);
   font-weight: var(--font-title-en-weight);
 }
 

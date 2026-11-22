@@ -56,6 +56,7 @@ export async function main(args=process.argv.slice(2)){
   writeFileSync(resolve(extension,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
   for(const file of ['panel.html','panel.css'])copyFileSync(resolve(ROOT,'extension',file),resolve(extension,file));
   copyAssets(resolve(ROOT,'extension/assets'),resolve(extension,'assets'),name=>/^(?:icon-(?:16|32|48|128)|pronunciation)\.png$/.test(name));
+  copyAssets(resolve(ROOT,'extension/assets/ui'),resolve(extension,'assets/ui'),name=>/^(?:search|trash|image|capture)\.svg$|^HEROICONS-LICENSE\.txt$/.test(name));
   copyFileSync(resolve(ROOT,'extension/assets/README.md'),resolve(extension,'assets/THIRD_PARTY_NOTICES.md'));
   const typography=resolve(extension,'assets/typography');mkdirSync(typography,{recursive:true});
   for(const file of ['fonts.css','typography.css'])copyFileSync(resolve(ROOT,'shared/typography',file),resolve(typography,file));

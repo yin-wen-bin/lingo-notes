@@ -1,4 +1,5 @@
 import { normalizeText,sentenceContext } from './context';
+import {normalizeUiLanguage,surfaceText} from './surface-i18n';
 declare global { interface Window { __lingoNotesCleanup?:()=>void } }
 try{window.__lingoNotesCleanup?.();}catch{} // An extension update invalidates the previous isolated-world listener.
 let cancelSelection:(()=>void)|null=null;
@@ -31,14 +32,15 @@ function resolveContext(query:string,rect?:{x:number,y:number,width:number,heigh
   }
   return {...sentenceContext(raw,query,hint),selection:selected,title:document.title,url:location.href,pageState:pageState()};
 }
-function selectRegion():Promise<any>{
+function selectRegion(language:unknown):Promise<any>{
   cancelSelection?.();
   return new Promise((resolve,reject)=>{
     const before=metrics(),focus=document.activeElement as HTMLElement|null;
     const host=document.createElement('div');host.setAttribute('data-lingo-overlay','');
     host.style.cssText='position:fixed;inset:0;z-index:2147483647;cursor:crosshair;touch-action:none;';
     const shadow=host.attachShadow({mode:'closed'});
-    shadow.innerHTML='<style>:host{all:initial} .surface{position:fixed;inset:0;background:rgba(0,0,0,.14);cursor:crosshair;user-select:none} .box{position:absolute;display:none;border:2px solid #267359;box-shadow:0 0 0 9999px rgba(0,0,0,.24);pointer-events:none} .hint{position:fixed;top:16px;left:50%;transform:translateX(-50%);padding:8px 16px;background:#fff;color:#243c31;border-radius:24px;font:14px system-ui;pointer-events:none}</style><div class="surface"><div class="box"></div><div class="hint">拖动框选 · Esc 取消</div></div>';
+    shadow.innerHTML='<style>:host{all:initial} .surface{position:fixed;inset:0;background:rgba(0,0,0,.14);cursor:crosshair;user-select:none} .box{position:absolute;display:none;border:2px solid #267359;box-shadow:0 0 0 9999px rgba(0,0,0,.24);pointer-events:none} .hint{position:fixed;top:16px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 32px);padding:8px 16px;background:#fff;color:#243c31;border-radius:24px;font:14px system-ui;pointer-events:none}</style><div class="surface"><div class="box"></div><div class="hint"></div></div>';
+    const hint=shadow.querySelector('.hint') as HTMLElement;hint.lang=normalizeUiLanguage(language);hint.textContent=surfaceText(language,'captureHint');
     document.documentElement.append(host);
     const surface=shadow.querySelector('.surface') as HTMLElement,box=shadow.querySelector('.box') as HTMLElement;
     let from:{x:number,y:number}|null=null,settled=false;
@@ -65,7 +67,7 @@ const listener=(message:any,sender:chrome.runtime.MessageSender,respond:(value:a
   if(sender.id!==chrome.runtime.id||message.channel!=='lingo-page')return;
   (async()=>{
     if(message.action==='context')return resolveContext(String(message.text??'').slice(0,12000),message.rect);
-    if(message.action==='select')return selectRegion();
+    if(message.action==='select')return selectRegion(message.ui_language);
     if(message.action==='cancel'){cancelSelection?.();return {};}
     if(message.action==='metrics')return metrics();
     if(message.action==='state')return pageState();

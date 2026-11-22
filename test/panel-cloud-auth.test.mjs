@@ -6,7 +6,7 @@ import http from 'node:http';
 import {build} from 'esbuild';
 import {chromium} from '@playwright/test';
 
-test('extension uses password login without sending email or persisting the password', {timeout:30000},async t=>{
+test('extension uses password login without sending email or persisting the password', {timeout:60000},async t=>{
   const bundle=await build({entryPoints:['extension/panel.ts'],bundle:true,format:'esm',platform:'browser',write:false,define:{__SUPABASE_URL__:JSON.stringify('https://panel-api.example'),__SUPABASE_PUBLISHABLE_KEY__:JSON.stringify('synthetic')}});
   const html=await readFile('extension/panel.html'),css=await readFile('extension/panel.css');
   const server=http.createServer(async(request,response)=>{
@@ -20,8 +20,9 @@ test('extension uses password login without sending email or persisting the pass
   const secondSettings={explanation_mode:'fast',font_theme:'clean'};let rejectFontSave=false,holdSettings=false,releaseSettings,settingsHeld;
   page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>logs.push(message.text()));
   await page.addInitScript(()=>{
-    const stores={local:{},session:{}};window.testStorage=stores;
-    const area=name=>({async get(keys){if(!keys)return {...stores[name]};return Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(key=>[key,stores[name][key]]));},async set(update){Object.assign(stores[name],update);},async remove(keys){for(const key of Array.isArray(keys)?keys:[keys])delete stores[name][key];}});
+    const stores={local:JSON.parse(sessionStorage.getItem('qa-extension-local')||'{}'),session:{}};window.testStorage=stores;
+    const persist=name=>{if(name==='local')sessionStorage.setItem('qa-extension-local',JSON.stringify(stores.local));};
+    const area=name=>({async get(keys){if(!keys)return {...stores[name]};return Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(key=>[key,stores[name][key]]));},async set(update){Object.assign(stores[name],update);persist(name);},async remove(keys){for(const key of Array.isArray(keys)?keys:[keys])delete stores[name][key];persist(name);}});
     window.chrome={storage:{local:area('local'),session:area('session'),onChanged:{addListener(listener){window.testStorageChange=listener;}}},runtime:{connect(){return {onMessage:{addListener(){}}};},async sendMessage(){return {ok:true,result:{}};}}};
   });
   await page.route('https://panel-api.example/**',async route=>{
@@ -44,7 +45,8 @@ test('extension uses password login without sending email or persisting the pass
     await route.fulfill({status:400,headers,body:JSON.stringify({error:'unexpected_request'})});
   });
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
-  await page.locator('#menu summary').click();await page.locator('#settingsTab').click();
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.fontTheme),'refined','signed-out users start with the new default');
+  await page.locator('#settingsTab').click();
   assert.equal(await page.locator('#sendOtp,#verifyOtp,#otp').count(),0);
   assert.match(await page.locator('#loginFields').textContent(),/一次性链接/);
   assert.equal(await page.locator('#password').getAttribute('type'),'password');
@@ -59,7 +61,7 @@ test('extension uses password login without sending email or persisting the pass
   assert.equal(await page.locator('#loginFields').isVisible(),false);assert.equal(await page.locator('#keyFields').isVisible(),true);
   assert.equal(await page.locator('#password').inputValue(),'');
   assert.equal(await page.locator('#modeFast').getAttribute('aria-pressed'),'true');
-  await page.locator('#modeThinking').click();await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('已保存：思考'));
+  await page.locator('#modeThinking').click();await page.waitForFunction(()=>document.querySelector('#modeSaveState').textContent.includes('已保存'));
   assert.equal(await page.locator('#modeThinking').getAttribute('aria-pressed'),'true');
   assert.equal(calls.filter(call=>call.body?.action==='settings.update').length,1);
   assert.deepEqual(calls.find(call=>call.body?.action==='settings.update').body.params,{explanation_mode:'thinking'});
@@ -71,19 +73,26 @@ test('extension uses password login without sending email or persisting the pass
   assert.equal(authCalls.length,2);assert.ok(authCalls.every(call=>call.path==='/auth/v1/token'&&call.query==='?grant_type=password'));
   assert.equal(authCalls[1].body.email,'learner@example.test');assert.equal(authCalls[1].body.password,'Synthetic good password 42');
   assert.equal(JSON.stringify(logs).includes('Synthetic'),false);
-  assert.equal(await page.getByRole('heading',{name:'字体方案',exact:true}).count(),1);
-  const fontSelect=page.getByLabel('字体组合',{exact:true});assert.equal(await fontSelect.inputValue(),'clean');
-  for(const theme of ['handwritten','bookish','clean']){
+  assert.equal(await page.getByRole('heading',{name:'字体外观',exact:true}).count(),1);
+  const fontSelect=page.getByLabel('字体外观',{exact:true});assert.equal(await fontSelect.inputValue(),'clean');
+  assert.deepEqual(await fontSelect.locator('option').evaluateAll(options=>options.map(option=>option.value)),['handwritten','bookish','clean','refined']);
+  for(const theme of ['handwritten','bookish','clean','refined']){
     const start=calls.length;await fontSelect.selectOption(theme);
     await page.waitForFunction(value=>document.querySelector('#fontTheme').value===value&&!document.querySelector('#fontTheme').disabled,theme);
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.fontTheme),theme);
     assert.deepEqual(calls.slice(start).map(call=>call.body?.action),['settings.update','settings.get']);
     assert.deepEqual(calls[start].body.params,{font_theme:theme});
     if(process.env.LINGO_FONT_SCREENSHOTS==='1'){
-      const directory=path.resolve('.cache/font-presets-ui');await mkdir(directory,{recursive:true});
+      const directory=path.resolve('.cache/refined-ui');await mkdir(directory,{recursive:true});
       for(const width of [320,390]){await page.setViewportSize({width,height:844});await page.evaluate(()=>document.fonts.ready);await page.locator('#fontFields').evaluate(element=>window.scrollTo(0,element.getBoundingClientRect().top+window.scrollY-110));assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);await page.screenshot({path:path.join(directory,`extension-${theme}-${width}.png`)});}
     }
   }
+  await page.reload();await page.waitForFunction(()=>document.querySelector('#fontTheme').value==='refined'&&!document.querySelector('#fontTheme').disabled);
+  await page.locator('#settingsTab').click();
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.fontTheme),'refined','the new theme persists after reopening');
+  delete settings.font_theme;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  await page.waitForFunction(()=>document.querySelector('#fontTheme').value==='refined'&&!document.querySelector('#fontTheme').disabled);
+  await fontSelect.selectOption('clean');await page.waitForFunction(()=>document.querySelector('#fontTheme').value==='clean'&&!document.querySelector('#fontTheme').disabled);
   rejectFontSave=true;await fontSelect.selectOption('handwritten');
   await page.waitForFunction(()=>document.querySelector('#fontState').textContent.includes('已恢复上次设置'));
   assert.equal(await fontSelect.inputValue(),'clean');assert.equal(await page.evaluate(()=>document.documentElement.dataset.fontTheme),'clean');
@@ -96,6 +105,6 @@ test('extension uses password login without sending email or persisting the pass
   releaseSettings();await page.waitForTimeout(50);
   assert.equal(await page.evaluate(()=>document.documentElement.dataset.fontTheme),'clean','a previous account settings response cannot overwrite the new account');
   await page.locator('#signOut').click();await page.waitForFunction(()=>document.querySelector('#loginFields').hidden===false);
-  assert.deepEqual(await page.evaluate(()=>window.testStorage.local),{});assert.equal(await page.evaluate(()=>document.documentElement.dataset.fontTheme),'clean');assert.equal(await page.locator('#password').inputValue(),'');
+  assert.deepEqual(await page.evaluate(()=>window.testStorage.local),{});assert.equal(await page.evaluate(()=>document.documentElement.dataset.fontTheme),'refined');assert.equal(await page.locator('#password').inputValue(),'');
   assert.deepEqual(errors,[]);
 });

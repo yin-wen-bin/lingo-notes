@@ -37,8 +37,12 @@ test('editing record A while context waits must never send its text as a retry o
     response.writeHead(200, { 'content-type': asset[1] }); response.end(asset[0]);
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => new Promise(resolve => server.close(resolve)));
-  const browser = await chromium.launch({ channel: 'msedge', headless: true }); t.after(() => browser.close());
+  let browser;
+  t.after(async () => {
+    try { await browser?.close(); }
+    finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+  }, { timeout: 10000 });
+  browser = await chromium.launch({ channel: 'msedge', headless: true });
   const page = await browser.newPage();
   await page.addInitScript(({ session }) => {
     const stores = { local: { 'lingo-session:https://review-api.example': JSON.stringify(session) }, session: { 'panel:user-a': { last_record_id: 'record-a', panel_state: { view: 'record' }, 'binding:record-a': { tabId: 1 }, 'binding:record-b': { tabId: 1 } } } };
@@ -59,7 +63,7 @@ test('editing record A while context waits must never send its text as a retry o
   });
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => document.querySelector('#recordOriginal').textContent === 'alpha');
-  await page.locator('#menu summary').click(); await page.locator('#editRecord').click();
+  await page.locator('#editRecord').click();
   await page.locator('#retryText').fill('edited alpha'); await page.locator('#retryConfirm').click();
   await page.waitForFunction(() => typeof window.releaseContext === 'function');
   await page.locator('#historyTab').click(); await page.locator('.history-card').filter({ hasText: 'bravo' }).click();
@@ -77,8 +81,13 @@ test('a saved terminal error stops processing even if the following recovery rea
     const asset = request.url === '/panel.js' ? [bundle.outputFiles[0].text, 'text/javascript'] : request.url === '/panel.css' ? [css, 'text/css'] : [html, 'text/html'];
     response.writeHead(200, { 'content-type': asset[1] }); response.end(asset[0]);
   });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => new Promise(resolve => server.close(resolve)));
-  const browser = await chromium.launch({ channel: 'msedge', headless: true }); t.after(() => browser.close());
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  let browser;
+  t.after(async () => {
+    try { await browser?.close(); }
+    finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+  }, { timeout: 10000 });
+  browser = await chromium.launch({ channel: 'msedge', headless: true });
   const page = await browser.newPage();
   await page.addInitScript(({ session }) => {
     const stores = { local: { 'lingo-session:https://review-api.example': JSON.stringify(session) }, session: { 'panel:user-a': { last_record_id: 'record-a', panel_state: { view: 'record' }, 'binding:record-a': { tabId: 1 } } } };
@@ -102,7 +111,7 @@ test('a saved terminal error stops processing even if the following recovery rea
   });
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => document.querySelector('#recordOriginal').textContent === 'alpha');
-  await page.locator('#menu summary').click(); await page.locator('#editRecord').click(); await page.locator('#retryText').fill('edited alpha'); await page.locator('#retryConfirm').click();
+  await page.locator('#editRecord').click(); await page.locator('#retryText').fill('edited alpha'); await page.locator('#retryConfirm').click();
   await page.waitForFunction(() => document.querySelector('#recordHeading').textContent === '处理失败');
   while (!recoveryReads) await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(await page.locator('#cancelJob').isVisible(), false);

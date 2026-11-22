@@ -1,59 +1,77 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lingo Notes</title><link rel="stylesheet" href="assets/typography/typography.css"><link rel="stylesheet" href="panel.css"></head>
 <body>
-<header><div class="topline"><p class="tagline">随手记，然后让AI帮你整理和复习</p><nav aria-label="主导航"><button id="historyTab" class="quiet">历史</button><details id="menu"><summary aria-label="更多">⋯</summary><div class="menu"><button id="newNote">新建笔记</button><button id="filePick">选择图片</button><button id="editRecord" hidden>修订或重试</button><button id="retryOcr" hidden>重新识别</button><button id="settingsTab">连接与设置</button></div></details></nav></div></header>
+<header><nav class="primary-nav" aria-label="主导航" data-i18n-aria-label="主导航"><button id="learnTab" type="button" class="nav-tab is-active" aria-current="page" aria-controls="learnView" data-i18n="新建">新建</button><button id="historyTab" type="button" class="nav-tab" aria-controls="historyView" data-i18n="历史">历史</button><button id="settingsTab" type="button" class="nav-tab" aria-controls="settingsView" data-i18n="设置">设置</button></nav></header>
 <main><div id="notice" role="status" aria-live="polite" hidden></div>
 <section id="learnView">
+  <div class="note-toolbar"><button id="backToHistory" type="button" class="quiet back-button" hidden data-i18n="← 返回历史">← 返回历史</button></div>
   <section id="composer">
-    <label class="sr-only" for="sourceText">需要学习的文字</label><textarea id="sourceText" rows="4" maxlength="12000" placeholder="划词后右键，或在这里输入…"></textarea>
-    <div class="actions"><button id="send" class="primary">讲解</button><button id="capture">截图</button></div>
-    <details id="draftDetails" class="details"><summary>材料详情</summary><p id="contextStatus" class="muted"></p><p id="draftContext" class="context"></p><a id="draftSource" target="_blank" rel="noopener noreferrer" hidden></a></details>
+    <div class="composer-input">
+      <label class="sr-only" for="sourceText" data-i18n="需要学习的文字">需要学习的文字</label><textarea id="sourceText" rows="4" maxlength="12000" placeholder="划词后右键，或在这里输入…" data-i18n-placeholder="划词后右键，或在这里输入…"></textarea>
+      <div class="composer-toolbar"><div class="input-tools" role="group" aria-label="添加图片" data-i18n-aria-label="添加图片"><button id="capture" type="button"><img src="assets/ui/capture.svg" alt="" aria-hidden="true"><span data-i18n="截图">截图</span></button><button id="filePick" type="button"><img src="assets/ui/image.svg" alt="" aria-hidden="true"><span data-i18n="选择图片">选择图片</span></button></div><select id="explanationLanguage" class="explanation-language" aria-label="界面与讲解语言" data-i18n-aria-label="界面与讲解语言" disabled><option value="zh" lang="zh-CN">中文</option><option value="ja" lang="ja">日本語</option><option value="en" lang="en">English</option></select></div>
+    </div>
+    <button id="send" class="primary composer-send" disabled data-i18n="讲解">讲解</button>
+    <details id="draftDetails" class="details" hidden><summary data-i18n="材料详情">材料详情</summary><p id="contextStatus" class="muted"></p><p id="draftContext" class="context"></p><a id="draftSource" target="_blank" rel="noopener noreferrer" hidden></a></details>
   </section>
-  <section id="imageStage" hidden><div class="section-title"><h2>确认截图</h2><button id="cancelImage" class="quiet">取消</button></div><img id="cropPreview" alt="即将发送和保存的图片"><p class="muted">确认后发送给 DeepSeek 识别，并将截图保存到你的私有云端。</p><div class="actions"><button id="recognize" class="primary">确认识别</button><button id="recapture">重新框选</button></div></section>
+  <section id="imageStage" hidden><div class="section-title"><h2 data-i18n="确认截图">确认截图</h2><button id="cancelImage" class="quiet" data-i18n="取消">取消</button></div><img id="cropPreview" alt="即将发送和保存的图片" data-i18n-alt="即将发送和保存的图片"><p class="muted" data-i18n="确认后发送给 DeepSeek 识别，并将截图保存到你的私有云端。">确认后发送给 DeepSeek 识别，并将截图保存到你的私有云端。</p><div class="actions"><button id="recognize" class="primary" data-i18n="确认识别">确认识别</button><button id="recapture" data-i18n="重新框选">重新框选</button></div></section>
   <section id="recordSection" hidden>
-    <div class="section-title"><h2 id="recordHeading"></h2><button id="cancelJob" class="quiet" hidden>取消</button></div>
+    <div class="section-title record-title"><h2 id="recordHeading"></h2><div class="record-heading-actions" role="group" aria-label="笔记操作" data-i18n-aria-label="笔记操作"><button id="editRecord" type="button" hidden data-i18n="修订或重试">修订或重试</button><button id="cancelJob" class="quiet" hidden data-i18n="取消">取消</button></div></div>
+    <div class="record-actions"><button id="retryOcr" type="button" hidden data-i18n="重新识别">重新识别</button></div>
     <p id="recordError" class="error" hidden></p>
-    <div id="reviewSection" hidden><label for="corrected">检查识别文字</label><textarea id="corrected" rows="5" maxlength="12000"></textarea><button id="confirmText" class="primary">确认讲解</button></div>
-    <div id="retrySection" hidden><label for="retryText">修订材料</label><textarea id="retryText" rows="5" maxlength="12000"></textarea><p class="muted">重新讲解可能再次产生 API 费用；保留原日期和上次完整讲解，成功后更新。</p><button id="retryConfirm" class="primary">确认重新讲解</button></div>
+    <div id="reviewSection" hidden><label for="corrected" data-i18n="检查识别文字">检查识别文字</label><textarea id="corrected" rows="5" maxlength="12000"></textarea><div class="actions explanation-actions"><button id="confirmText" class="primary" disabled data-i18n="确认讲解">确认讲解</button><select id="reviewLanguage" class="explanation-language" aria-label="截图讲解语言" data-i18n-aria-label="截图讲解语言" disabled><option value="zh" lang="zh-CN">中文</option><option value="ja" lang="ja">日本語</option><option value="en" lang="en">English</option></select></div></div>
+    <div id="retrySection" hidden><label for="retryText" data-i18n="修订材料">修订材料</label><textarea id="retryText" rows="5" maxlength="12000"></textarea><div class="actions explanation-actions"><button id="retryConfirm" class="primary" disabled data-i18n="确认重新讲解">确认重新讲解</button><select id="retryLanguage" class="explanation-language" aria-label="重新讲解语言" data-i18n-aria-label="重新讲解语言" disabled><option value="zh" lang="zh-CN">中文</option><option value="ja" lang="ja">日本語</option><option value="en" lang="en">English</option></select></div></div>
     <div id="lesson"></div>
-    <details id="recordDetails" class="details"><summary>材料详情</summary><p id="recordOriginal" class="original"></p><p id="recordContext" class="context"></p><a id="recordSource" target="_blank" rel="noopener noreferrer" hidden></a><p id="recordMeta" class="muted"></p><p id="imageState" class="muted" hidden></p><button id="openImage" class="image-button" hidden><img id="recordImage" alt="已保存截图，点击放大"></button></details>
-    <button id="newDraft" class="new-note">＋ 新建笔记</button>
+    <details id="recordDetails" class="details"><summary data-i18n="材料详情">材料详情</summary><p id="recordOriginal" class="original"></p><p id="recordContext" class="context"></p><a id="recordSource" target="_blank" rel="noopener noreferrer" hidden></a><p id="recordMeta" class="muted"></p><p id="imageState" class="muted" hidden></p><button id="openImage" class="image-button" hidden><img id="recordImage" alt="已保存截图，点击放大" data-i18n-alt="已保存截图，点击放大"></button></details>
   </section>
 </section>
-<section id="historyView" hidden><div class="section-title"><h2>历史</h2><button id="backFromHistory" class="quiet back-button">返回</button></div><div class="search"><input id="search" type="search" placeholder="搜索笔记" aria-label="搜索历史"><button id="searchButton">查询</button></div><div id="historyList"></div><button id="more" hidden>加载更多</button></section>
-<section id="settingsView" hidden>
-  <div class="section-title"><h2>连接与设置</h2><button id="backFromSettings" class="quiet back-button">返回</button></div>
-  <div id="connectionState" role="status">正在检查登录状态…</div>
-  <section id="loginFields" class="settings-card">
-    <label for="email">已开通的邮箱</label><input id="email" type="email" autocomplete="username" placeholder="you@example.com">
-    <label for="password">密码</label><input id="password" type="password" autocomplete="current-password" maxlength="1024">
-    <button id="signIn" type="button" class="primary">登录</button>
-    <p class="muted">首次使用请打开管理员提供的学习中心一次性链接，设置密码后再回来登录。</p>
+<section id="historyView" aria-labelledby="historyHeading" hidden><h2 id="historyHeading" class="sr-only" data-i18n="历史">历史</h2><div class="search"><label class="history-search-field" for="search"><img class="search-icon" src="assets/ui/search.svg" alt="" aria-hidden="true"><input id="search" type="search" placeholder="搜索学习记录…" data-i18n-placeholder="搜索学习记录…" aria-label="搜索历史" data-i18n-aria-label="搜索历史"></label><button id="searchButton" class="primary" data-i18n="查询">查询</button></div><div id="historyList"></div><button id="more" hidden data-i18n="加载更多">加载更多</button></section>
+<section id="settingsView" aria-labelledby="settingsHeading" hidden>
+  <h2 id="settingsHeading" class="sr-only" data-i18n="设置">设置</h2>
+  <section id="modeFields" class="settings-section" hidden>
+    <h3 data-i18n="讲解模式">讲解模式</h3>
+    <div class="mode-options" role="group" aria-label="讲解模式" data-i18n-aria-label="讲解模式"><button id="modeFast" type="button" class="primary" aria-pressed="true" data-i18n="快速">快速</button><button id="modeThinking" type="button" aria-pressed="false" data-i18n="思考">思考</button></div>
+    <div class="mode-description"><p id="modeState" class="muted" data-i18n="等待更短，用量较少。">等待更短，用量较少。</p><details id="modeHelp" class="settings-help"><summary data-i18n="模式说明">模式说明</summary><p class="muted" data-i18n="快速模式通常等待更短、用量更少；思考模式通常需要更久、消耗更多额度，也可能出错。对新讲解生效，截图识别始终快速。">快速模式通常等待更短、用量更少；思考模式通常需要更久、消耗更多额度，也可能出错。对新讲解生效，截图识别始终快速。</p></details></div>
+    <p id="modeSaveState" class="muted settings-status" role="status" aria-live="polite"></p>
   </section>
-  <section id="keyFields" class="settings-card" hidden>
-    <h3>DeepSeek API</h3><p id="keyState" class="muted"></p>
-    <label for="apiKey">填写或更新 API Key</label><input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="输入后加密保存">
-    <div class="actions"><button id="saveKey" class="primary">保存 Key</button><button id="deleteKey">移除</button></div>
-    <p class="muted">Key 在云端加密保存，不会回显。模型费用由 DeepSeek 直接收取。</p>
+  <section id="reviewSettings" class="settings-section" hidden>
+    <h3 data-i18n="每日复习">每日复习</h3>
+    <label for="reviewDailyLimit" data-i18n="每天最多复习几张卡片">每天最多复习几张卡片</label>
+    <div class="review-limit-controls"><input id="reviewDailyLimit" type="number" min="1" max="100" step="1" inputmode="numeric" value="5" aria-describedby="reviewLimitHelp reviewLimitState" disabled><button id="saveReviewLimit" type="button" data-i18n="保存" disabled>保存</button></div>
+    <p id="reviewLimitHelp" class="muted" data-i18n="输入 1–100 的整数，对新生成的复习批次生效。">输入 1–100 的整数，对新生成的复习批次生效。</p>
+    <p id="reviewLimitState" class="muted settings-status" role="status" aria-live="polite"></p>
   </section>
-  <section id="modeFields" class="settings-card" hidden>
-    <h3>讲解模式</h3>
-    <div class="actions" role="group" aria-label="讲解模式"><button id="modeFast" type="button" class="primary" style="flex:1" aria-pressed="true">快速（默认）</button><button id="modeThinking" type="button" style="flex:1" aria-pressed="false">思考</button></div>
-    <p id="modeState" class="muted">当前为快速模式。</p>
-    <p class="muted">快速模式通常等待更短、用量更少；思考模式通常需要更久、消耗更多额度，也可能出错。对新讲解生效，截图识别始终快速。</p>
+  <section id="fontFields" class="settings-section" hidden>
+    <h3><label for="fontTheme" data-i18n="字体外观">字体外观</label></h3>
+    <select id="fontTheme" aria-describedby="fontDescription fontState"><option value="handwritten" data-i18n="手写感">手写感</option><option value="bookish" data-i18n="书卷感">书卷感</option><option value="clean" data-i18n="清爽自然">清爽自然</option><option value="refined" selected data-i18n="雅致清晰">雅致清晰</option></select>
+    <div class="font-preview" aria-label="字体预览" data-i18n-aria-label="字体预览"><p class="ui-text" lang="zh-CN">把遇见的文字，慢慢读懂。</p><p class="learning-text" lang="en">A little discovery, every day.</p><p class="learning-text" lang="ja">言葉との出会いを、少しずつ。</p></div>
+    <div class="font-footer"><p id="fontState" class="muted settings-status" role="status" data-i18n="更改后自动保存">更改后自动保存</p><details id="fontHelp" class="settings-help"><summary data-i18n="字体详情">字体详情</summary><p id="fontDescription" class="muted"></p></details></div>
   </section>
-  <section id="fontFields" class="settings-card" hidden>
-    <h3>字体方案</h3>
-    <label for="fontTheme">字体组合</label><select id="fontTheme" aria-describedby="fontDescription fontState"><option value="handwritten">手写感</option><option value="bookish">书卷感</option><option value="clean" selected>清爽自然</option></select>
-    <p id="fontDescription" class="muted"></p>
-    <div class="font-preview" aria-label="字体预览"><p class="ui-text" lang="zh-CN">把遇见的文字，慢慢读懂。</p><p class="learning-text" lang="en">A little discovery, every day.</p><p class="learning-text" lang="ja">言葉との出会いを、少しずつ。</p></div>
-    <p id="fontState" class="muted" role="status">标题、按钮和学习内容一起切换，并在登录后同步。</p>
+  <section id="accountSettings" class="settings-section">
+    <h3 data-i18n="账号与连接">账号与连接</h3>
+    <div id="connectionState" role="status" data-i18n="正在检查登录状态…">正在检查登录状态…</div>
+    <section id="loginFields" class="login-fields">
+      <label for="email" data-i18n="已开通的邮箱">已开通的邮箱</label><input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+      <label for="password" data-i18n="密码">密码</label><input id="password" type="password" autocomplete="current-password" maxlength="1024">
+      <button id="signIn" type="button" class="primary" data-i18n="登录">登录</button>
+      <p class="muted" data-i18n="首次使用请打开管理员提供的学习中心一次性链接，设置密码后再回来登录。">首次使用请打开管理员提供的学习中心一次性链接，设置密码后再回来登录。</p>
+    </section>
+    <section id="keyFields" class="settings-key" hidden>
+      <details id="keyEditor">
+        <summary><span class="key-title">DeepSeek API</span><span id="keyState" class="muted" data-i18n="尚未确认">尚未确认</span><span id="keyEditorAction" data-i18n="配置">配置</span></summary>
+        <div class="key-edit-body">
+          <p id="keyDetail" class="muted"></p>
+          <label for="apiKey" data-i18n="填写或更新 API Key">填写或更新 API Key</label><input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="输入后加密保存" data-i18n-placeholder="输入后加密保存">
+          <div class="actions"><button id="saveKey" type="button" class="primary" data-i18n="保存 Key">保存 Key</button><button id="deleteKey" type="button" data-i18n="移除">移除</button></div>
+        </div>
+      </details>
+      <p class="muted" data-i18n="Key 加密保存，模型费用由 DeepSeek 收取。">Key 加密保存，模型费用由 DeepSeek 收取。</p>
+    </section>
+    <div class="actions account-actions"><button id="diagnose" data-i18n="检查连接">检查连接</button><button id="signOut" hidden data-i18n="退出登录">退出登录</button></div>
+    <p class="muted account-hint" data-i18n="退出登录会清除本设备草稿，不删除云端笔记。">退出登录会清除本设备草稿，不删除云端笔记。</p>
   </section>
-  <div class="actions"><button id="diagnose">检查连接</button><button id="signOut" hidden>退出登录</button></div>
-  <p class="muted">笔记与确认截图保存在你的私有云端。查询和历史需要网络；退出登录会清除本设备草稿，不删除云端笔记。</p>
-  <footer class="support-links" aria-label="隐私与支持"><a href="https://lingo-notes.pages.dev/privacy" target="_blank" rel="noopener noreferrer">隐私说明</a><a href="https://lingo-notes.pages.dev/support" target="_blank" rel="noopener noreferrer">使用支持</a></footer>
+  <footer class="support-links" aria-label="隐私与支持" data-i18n-aria-label="隐私与支持"><p class="muted" data-i18n="笔记与截图保存在私有云端。">笔记与截图保存在私有云端。</p><a href="https://lingo-notes.pages.dev/privacy" target="_blank" rel="noopener noreferrer" data-i18n="隐私说明">隐私说明</a><a href="https://lingo-notes.pages.dev/support" target="_blank" rel="noopener noreferrer" data-i18n="使用支持">使用支持</a></footer>
 </section>
 </main>
 <input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
-<dialog id="imageDialog"><button id="closeImage" class="quiet">关闭</button><img id="fullImage" alt="已保存截图"></dialog>
+<dialog id="imageDialog"><button id="closeImage" class="quiet" data-i18n="关闭">关闭</button><img id="fullImage" alt="已保存截图" data-i18n-alt="已保存截图"></dialog>
 <script type="module" src="panel.js"></script></body></html>

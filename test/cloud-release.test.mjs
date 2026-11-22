@@ -9,7 +9,8 @@ import {buildOptions,extensionIdentity,extensionManifest} from '../scripts/build
 import {packageExtension,inspectExtension,assertSafeText,crc32} from '../scripts/package-extension.mjs';
 import {extensionOrigins,DEVELOPMENT_EXTENSION_ID} from '../scripts/cloud-setup.mjs';
 
-const licenseNames=['zen-kaku-gothic-new','noto-serif-sc','noto-serif-jp','noto-sans-sc','lxgw-wenkai-screen','lora','literata','klee-one','dm-sans'];
+const licenseNames=['zen-kaku-gothic-new','noto-serif-sc','noto-serif-jp','noto-sans-sc','lxgw-wenkai-screen','lora','literata','klee-one','dm-sans','inter','manrope','noto-sans-jp'];
+const uiAssets=['search.svg','trash.svg','image.svg','capture.svg','HEROICONS-LICENSE.txt'];
 function fixture(t){
   const root=mkdtempSync(resolve(tmpdir(),'lingo-release-test-'));
   t.after(()=>{assert.ok(root.startsWith(resolve(tmpdir())+sep)&&root.split(sep).at(-1).startsWith('lingo-release-test-'));rmSync(root,{recursive:true,force:true});});
@@ -19,6 +20,7 @@ function fixture(t){
   write('dist/build-info.json',{version:manifest.version,profile:'store',configured:false,extension_id:null});
   for(const name of ['background.js','panel.js','page.js','panel.html','panel.css','assets/THIRD_PARTY_NOTICES.md','assets/typography/typography.css'])write('dist/extension/'+name,'synthetic fixture');
   for(const name of ['icon-16','icon-32','icon-48','icon-128','pronunciation'])write('dist/extension/assets/'+name+'.png',Buffer.from([137,80,78,71]));
+  for(const name of uiAssets)write('dist/extension/assets/ui/'+name,name.endsWith('.svg')?'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"></svg>':'Synthetic Heroicons license fixture');
   write('dist/extension/assets/typography/fonts.css','@font-face { src: url("./fonts/synthetic.woff2"); }');
   write('dist/extension/assets/typography/fonts/synthetic.woff2','synthetic font');
   for(const name of licenseNames)write('dist/extension/assets/typography/licenses/'+name+'-OFL.txt','Synthetic license fixture');
@@ -50,10 +52,11 @@ test('build uses manifest version and preserves the checked-in development ident
 test('store draft ZIP has root manifest, attribution, all licenses, deterministic hash and valid CRC',t=>{
   const value=fixture(t);assert.throws(()=>packageExtension({root:value.root}),/CONFIGURED_STORE_BUILD_REQUIRED/);
   const report=packageExtension({root:value.root,allowUnconfigured:true}),bytes=readFileSync(report.zip),entries=unzipLocal(bytes);
-  assert.equal(crc32(Buffer.from('123456789')),0xcbf43926);assert.equal(report.version,'1.2.3');assert.equal(report.font_files,1);assert.equal(report.font_licenses,9);
+  assert.equal(crc32(Buffer.from('123456789')),0xcbf43926);assert.equal(report.version,'1.2.3');assert.equal(report.font_files,1);assert.equal(report.font_licenses,12);
   assert.equal(report.sha256,createHash('sha256').update(bytes).digest('hex'));assert.ok(report.zip.endsWith('-store-draft.zip'));
   assert.ok(entries.has('manifest.json'));assert.ok(entries.has('assets/THIRD_PARTY_NOTICES.md'));assert.equal(JSON.parse(entries.get('manifest.json')).version,'1.2.3');
   for(const name of licenseNames)assert.ok(entries.has('assets/typography/licenses/'+name+'-OFL.txt'));
+  for(const name of uiAssets)assert.ok(entries.has('assets/ui/'+name));
   assert.equal([...entries.keys()].some(name=>/\.ts$|(^|\/)(data|pwa|extension)\//.test(name)),false);
   assert.equal(packageExtension({root:value.root,allowUnconfigured:true}).sha256,report.sha256);
 });
@@ -62,6 +65,24 @@ test('package blocks unreviewed capabilities, unexpected source and missing runt
   const value=fixture(t);value.write('dist/extension/debug.ts','export {}');assert.throws(()=>inspectExtension(value.extension),/UNEXPECTED_PACKAGE_FILE/);rmSync(resolve(value.extension,'debug.ts'));
   value.write('dist/extension/manifest.json',{...value.manifest,permissions:[...value.manifest.permissions,'tabs']});assert.throws(()=>inspectExtension(value.extension),/UNREVIEWED_EXTENSION_CAPABILITY/);
   value.write('dist/extension/manifest.json',value.manifest);value.write('dist/extension/assets/typography/fonts.css','@font-face { src: url("https://example.test/font.woff2"); }');assert.throws(()=>inspectExtension(value.extension),/MISSING_OR_REMOTE_FONT/);
+});
+
+test('package requires each reviewed UI asset and refuses unlisted SVGs',t=>{
+  const value=fixture(t);
+  for(const name of uiAssets){
+    const file=resolve(value.extension,'assets/ui',name),bytes=readFileSync(file);rmSync(file);
+    assert.throws(()=>packageExtension({root:value.root,allowUnconfigured:true}),/REQUIRED_PACKAGE_FILE_MISSING/);
+    value.write('dist/extension/assets/ui/'+name,bytes);
+  }
+  assert.doesNotThrow(()=>inspectExtension(value.extension));
+  value.write('dist/extension/assets/ui/unreviewed.svg','<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+  assert.throws(()=>inspectExtension(value.extension),/UNEXPECTED_PACKAGE_FILE/);
+});
+
+test('reviewed SVG assets also receive the package secret scan',t=>{
+  const value=fixture(t);
+  value.write('dist/extension/assets/ui/search.svg','<svg><!-- sk-'+'x'.repeat(32)+' --></svg>');
+  assert.throws(()=>inspectExtension(value.extension),/SECRET_PATTERN_IN_EXTENSION/);
 });
 
 test('package refuses development profile and version drift',t=>{
