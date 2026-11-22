@@ -5,6 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {build} from 'esbuild';
 import {chromium} from '@playwright/test';
+import {installSelectionQueueBridge} from './helpers/selection-background.mjs';
 
 const origin='https://panel-review.example';
 const record=id=>({record_id:id,revision:1,status:'complete',input_type:'text',local_date:'2026-11-22',original_text:id==='first'?'少しずつ上達しています。':'Every small step counts.',explanation_language:'zh',result:{language:'ja',explanation_language:'zh',summary_zh:'每天前进一步，学习也会逐渐积累。',vocabulary:[{term:'上達',reading:'じょうたつ',pos:'名词',meaning:'进步；熟练程度提高',examples:[{text:'毎日練習すると、上達します。',translation:'每天练习，就会进步。'}]}],grammar:[{point:'〜ています：持续的变化',explanation:'这里表示变化正在持续。',examples:[{text:'少しずつ日本語が上達しています。',translation:'日语正在一点点进步。'}]}]}});
@@ -51,6 +52,7 @@ async function harness(t){
     try{await route.fulfill({status:200,headers,body:JSON.stringify({ok:true,result})});}catch{/* Held responses may outlive a test page. */}
   });
   const hold=(action,{owner='one',match=()=>true}={})=>{const gate={owner,action,match};gate.started=new Promise(resolve=>{gate.startedResolve=resolve;});gate.promise=new Promise(resolve=>{gate.release=resolve;});pending.push(gate);gates.push(gate);return gate;};
+  await installSelectionQueueBridge(t,page,origin);
   await page.goto(`http://127.0.0.1:${server.address().port}/`);await page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled&&!document.querySelector('#reviewDailyLimit').disabled);
   const open=async(id='first')=>{await page.locator('#historyTab').click();await page.locator('.history-card').filter({hasText:record(id).original_text}).click();await page.locator('#recordSection').waitFor();};
   const readyCards=()=>page.waitForFunction(()=>[...document.querySelectorAll('.mastery-toggle')].filter(b=>!b.hidden).length===2);

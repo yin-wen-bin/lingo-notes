@@ -5,6 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {build} from 'esbuild';
 import {chromium} from '@playwright/test';
+import {installSelectionQueueBridge} from './helpers/selection-background.mjs';
 
 function lesson(language='zh'){
   const text={zh:['持续练习','名词','练习','每天练习。'],ja:['練習を続ける','名詞','練習すること','毎日練習する。'],en:['Keep practising','noun','repeated learning','Practise each day.']}[language];
@@ -67,6 +68,7 @@ async function harness(t){
     else if(body.action==='ping')result={protocol:'cloud/3'};
     await route.fulfill({status:200,headers,body:JSON.stringify({ok:true,result})});
   });
+  await installSelectionQueueBridge(t,page,'https://panel-language.example');
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled);
   const ready=()=>page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled);

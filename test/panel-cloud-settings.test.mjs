@@ -5,6 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {build} from 'esbuild';
 import {chromium} from '@playwright/test';
+import {installSelectionQueueBridge} from './helpers/selection-background.mjs';
 
 const apiOrigin='https://panel-settings.example';
 const syntheticRecord={record_id:'synthetic-note',revision:1,status:'complete',input_type:'text',local_date:'2026-11-21',original_text:'見えます',explanation_language:'zh',result:{language:'ja',explanation_language:'zh',summary_zh:'表示事物在视野中可以被看见。',vocabulary:[{term:'見えます',reading:'みえます',pos:'动词',meaning:'看得见',examples:[{text:'窓から山が見えます。',translation:'从窗户可以看见山。'}]}],grammar:[]}};
@@ -61,6 +62,7 @@ async function harness(t,{configured=true,signedIn=true}={}){
   });
   const hold=(action,owner='one')=>{const gate={};gate.started=new Promise(resolve=>{gate.startedResolve=resolve;});gate.releasePromise=new Promise(resolve=>{gate.release=resolve;});gates.set(owner+':'+action,gate);pendingGates.push(gate);return gate;};
   t.after(()=>{for(const gate of pendingGates)gate.release();});
+  await installSelectionQueueBridge(t,page,apiOrigin);
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   if(signedIn)await page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled);
   await page.locator('#settingsTab').click();

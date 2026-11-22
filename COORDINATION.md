@@ -22,3 +22,7 @@
 2026-11-22复习控制：codex/lingo-review-controls；基线在主目录.cache/review-controls-20261122。review_backend只改supabase/**、cloud-backup/restore脚本及后端/备份测试；review_pwa只改pwa/**与pwa测试；review_extension只改extension/**与panel-cloud测试。主代理维护契约、共享类型、执行文档、发布/集成脚本、真实合成验证及最终交付。新接口cloud/5，前端动作固定review.cards、review.complete、review.mastery；每日数量review_daily_limit。所有子任务只用合成数据，不执行生产/模型/部署/提交。共享源码在隔离目录以不重叠文件职责并行，实际发布前复查release与原cloud-v1基线哈希。
 
 本轮状态：子任务审查与整合完成；156/156回归、5组已部署合成验证通过。007/函数/PWA已上线，原开发扩展目录已更新；没有GitHub推送或商店提交。临时验收账号全部清理，付费模型和用户测试推送均0次。证据见docs/review-controls-validation.md。
+
+2026-11-22划词直接查询：codex/lingo-selection-queue，以发布HEAD 6e56abe和1307文件快照实施。selection_queue负责background、队列core/内部类型和core测试；selection_panel负责panel控制器、状态条与三语样式；selection_tests负责真实后台协调的合成浏览器测试及必要旧harness适配。主代理维护计划、文档、代码复核、全套检查、哈希整合和原路径构建。源码文件职责不重叠，Edge测试独占分配窗口，全部使用合成数据。cloud/5不变，无云端/模型/部署/提交；整合前核对原cloud-v1基线文件及发布源文件哈希。
+
+同日后续源码发布：用户另行授权将已完成的划词直接查询修改提交并推送GitHub。发布负责人仅在codex/github-publish工作区核对本次22文件、原整合哈希及远端main，按明确路径暂存，普通Git fast-forward推送；不推旧main或其他分支，不包含缓存、生成构建及凭据。

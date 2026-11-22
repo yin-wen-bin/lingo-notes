@@ -31,6 +31,12 @@ h1 { font-weight: var(--font-heading-weight, 600); }
 h1:lang(ja), h2:lang(ja), h3:lang(ja) { font-family: var(--font-ui-heading-ja, var(--font-ui-ja)); }
 h1.ui-text:lang(ja), h2.ui-text:lang(ja), h3.ui-text:lang(ja) { font-family: var(--font-ui-heading-ja, var(--font-ui-ja)); }
 main { padding: 18px; }
+.selection-queue { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px; margin-bottom: 16px; border-radius: 8px; background: #edf5e7; }
+.queue-copy { flex: 1 1 150px; min-width: 0; overflow-wrap: anywhere; }
+.selection-queue p { margin: 0; font-size: var(--composer-text-size); }
+.selection-queue .muted { font-size: var(--small-text-size); }
+.queue-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.queue-actions button { min-height: 36px; padding: 5px 9px; font-size: var(--composer-text-size); }
 button, summary { cursor: pointer; }
 button { font: inherit; font-family: var(--font-ui-button, var(--font-ui, "Segoe UI", "Microsoft YaHei", sans-serif)); font-weight: var(--font-button-weight, 500); line-height: 1.65; color: inherit; border: 1px solid #d8e0d7; border-radius: 8px; background: #fff; padding: 8px 13px; }
 button:lang(ja), summary:lang(ja) { font-family: var(--font-ui-button-ja, var(--font-ui-ja)); }

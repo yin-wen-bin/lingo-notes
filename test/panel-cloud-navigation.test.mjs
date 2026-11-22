@@ -5,6 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {build} from 'esbuild';
 import {chromium} from '@playwright/test';
+import {installSelectionQueueBridge} from './helpers/selection-background.mjs';
 
 const apiOrigin='https://panel-navigation.example';
 const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -91,6 +92,7 @@ async function harness(t,{restoreProcessing=false,holdAccepted=false}={}){
     const gate={};gate.started=new Promise(resolve=>{gate.startedResolve=resolve;});gate.releasePromise=new Promise(resolve=>{gate.release=resolve;});gates.set(id,gate);pendingGates.add(gate);return gate;
   };
   t.after(()=>{for(const gate of pendingGates)gate.release();});
+  await installSelectionQueueBridge(t,page,apiOrigin);
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   if(restoreProcessing)await page.locator('#cancelJob').waitFor();else await page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled);
   const selected=async id=>{assert.equal(await page.locator('#'+id).getAttribute('aria-current'),'page');assert.equal(await page.locator('nav [aria-current="page"]').count(),1);assert.equal(await page.locator('#'+id).evaluate(element=>element.classList.contains('is-active')),true);};

@@ -5,6 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {build} from 'esbuild';
 import {chromium} from '@playwright/test';
+import {installSelectionQueueBridge} from './helpers/selection-background.mjs';
 
 // UTC November 20 is already November 21 in the product's Beijing calendar.
 const now='2026-11-20T16:30:00.000Z';
@@ -71,6 +72,7 @@ async function harness(t){
     else if(body.action.startsWith('learning.')||body.action==='images.url')throw Error('History must not generate lessons or load image details');
     await route.fulfill({status:200,headers,body:JSON.stringify({ok:true,result})});
   });
+  await installSelectionQueueBridge(t,page,'https://panel-history.example');
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled);
   const open=async()=>{await page.locator('#historyTab').click();await page.locator('.history-row').first().waitFor();};

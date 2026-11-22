@@ -4,11 +4,19 @@ import { readFile } from 'node:fs/promises';
 import http from 'node:http';
 import { build } from 'esbuild';
 import { chromium } from '@playwright/test';
+import {installSelectionQueueBridge} from './helpers/selection-background.mjs';
 import { createCloudClient } from '../shared/cloud-client.ts';
 
 const session = id => ({ access_token: `synthetic-${id}`, refresh_token: `synthetic-refresh-${id}`, expires_at: Date.now() / 1000 + 3600, user: { id, email: `${id}@example.test` } });
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+async function closePanelHarness(browser,server,queueHost){
+  const started=performance.now(),phases=[];const mark=name=>phases.push({phase:name,elapsed_ms:Math.round(performance.now()-started)});
+  queueHost?.close();mark('queue-disconnected');
+  const stopped=new Promise(resolve=>server.close(resolve));server.closeAllConnections();mark('http-connections-closed');
+  try{await browser?.close();mark('browser-closed');}
+  finally{server.closeAllConnections();await stopped;mark('server-closed');if(process.env.LINGO_INTEROP_CLEANUP_TRACE==='1')console.log('synthetic panel cleanup '+JSON.stringify(phases));}
+}
 
 test('late 401 from old account must not remove the newly authenticated account', async () => {
   const pending = new Map(); const saved = new Map([['lingo-session:https://review-api.example', JSON.stringify(session('user-a'))]]);
@@ -37,11 +45,8 @@ test('editing record A while context waits must never send its text as a retry o
     response.writeHead(200, { 'content-type': asset[1] }); response.end(asset[0]);
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  let browser;
-  t.after(async () => {
-    try { await browser?.close(); }
-    finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
-  }, { timeout: 10000 });
+  let browser,queueHost;
+  t.after(()=>closePanelHarness(browser,server,queueHost),{timeout:10000});
   browser = await chromium.launch({ channel: 'msedge', headless: true });
   const page = await browser.newPage();
   await page.addInitScript(({ session }) => {
@@ -61,6 +66,7 @@ test('editing record A while context waits must never send its text as a retry o
     else result = {};
     await route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ ok: true, result }) });
   });
+  queueHost=await installSelectionQueueBridge(t,page,'https://review-api.example');
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => document.querySelector('#recordOriginal').textContent === 'alpha');
   await page.locator('#editRecord').click();
@@ -82,11 +88,8 @@ test('a saved terminal error stops processing even if the following recovery rea
     response.writeHead(200, { 'content-type': asset[1] }); response.end(asset[0]);
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  let browser;
-  t.after(async () => {
-    try { await browser?.close(); }
-    finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
-  }, { timeout: 10000 });
+  let browser,queueHost;
+  t.after(()=>closePanelHarness(browser,server,queueHost),{timeout:10000});
   browser = await chromium.launch({ channel: 'msedge', headless: true });
   const page = await browser.newPage();
   await page.addInitScript(({ session }) => {
@@ -94,7 +97,7 @@ test('a saved terminal error stops processing even if the following recovery rea
     const area = name => ({ async get(keys) { if (!keys) return { ...stores[name] }; return Object.fromEntries((Array.isArray(keys) ? keys : [keys]).map(key => [key, stores[name][key]])); }, async set(update) { Object.assign(stores[name], update); }, async remove(keys) { for (const key of Array.isArray(keys) ? keys : [keys]) delete stores[name][key]; } });
     window.chrome = { storage: { local: area('local'), session: area('session'), onChanged: { addListener() {} } }, runtime: { connect() { return { onMessage: { addListener() {} } }; }, async sendMessage() { return { ok: true, result: { context: 'synthetic context', status: 'matched', binding: { tabId: 1 }, source: null } }; } } };
   }, { session: session('user-a') });
-  const saved = { record_id: 'record-a', revision: 2, status: 'complete', input_type: 'text', local_date: '2026-11-19', original_text: 'alpha', result: { language: 'en', summary_zh: '上次完整的合成讲解', vocabulary: [], grammar: [] } };
+  const saved = { record_id: 'record-a', request_id:'synthetic-previous-request', revision: 2, status: 'complete', input_type: 'text', local_date: '2026-11-19', original_text: 'alpha', result: { language: 'en', summary_zh: '上次完整的合成讲解', vocabulary: [], grammar: [] } };
   let attempted = false, recoveryReads = 0;
   await page.route('https://review-api.example/**', async route => {
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
@@ -103,12 +106,13 @@ test('a saved terminal error stops processing even if the following recovery rea
     if (body.action === 'learning.retry') {
       attempted = true;
       const base = { request_id: body.request_id, record_id: 'record-a' };
-      const events = `event: accepted\ndata: ${JSON.stringify({ ...base, revision: 3, record: { ...saved, revision: 3, status: 'processing' } })}\n\nevent: error\ndata: ${JSON.stringify({ ...base, revision: 4, error: 'INVALID_LESSON', record: { ...saved, revision: 4, status: 'failed', error: 'INVALID_LESSON' } })}\n\n`;
+      const events = `event: accepted\ndata: ${JSON.stringify({ ...base, revision: 3, record: { ...saved, ...base, revision: 3, status: 'processing' } })}\n\nevent: error\ndata: ${JSON.stringify({ ...base, revision: 4, error: 'INVALID_LESSON', record: { ...saved, ...base, revision: 4, status: 'failed', error: 'INVALID_LESSON' } })}\n\n`;
       await route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'text/event-stream' }, body: events }); return;
     }
     if (body.action === 'records.get' && attempted) { recoveryReads++; await route.fulfill({ status: 503, headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ ok: false, error: 'NETWORK_ERROR' }) }); return; }
     await route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ ok: true, result: body.action === 'records.get' ? saved : {} }) });
   });
+  queueHost=await installSelectionQueueBridge(t,page,'https://review-api.example');
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => document.querySelector('#recordOriginal').textContent === 'alpha');
   await page.locator('#editRecord').click(); await page.locator('#retryText').fill('edited alpha'); await page.locator('#retryConfirm').click();

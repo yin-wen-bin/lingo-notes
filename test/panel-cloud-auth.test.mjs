@@ -5,6 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {build} from 'esbuild';
 import {chromium} from '@playwright/test';
+import {installSelectionQueueBridge} from './helpers/selection-background.mjs';
 
 test('extension uses password login without sending email or persisting the password', {timeout:60000},async t=>{
   const bundle=await build({entryPoints:['extension/panel.ts'],bundle:true,format:'esm',platform:'browser',write:false,define:{__SUPABASE_URL__:JSON.stringify('https://panel-api.example'),__SUPABASE_PUBLISHABLE_KEY__:JSON.stringify('synthetic')}});
@@ -44,6 +45,7 @@ test('extension uses password login without sending email or persisting the pass
     }
     await route.fulfill({status:400,headers,body:JSON.stringify({error:'unexpected_request'})});
   });
+  await installSelectionQueueBridge(t,page,'https://panel-api.example');
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   assert.equal(await page.evaluate(()=>document.documentElement.dataset.fontTheme),'refined','signed-out users start with the new default');
   await page.locator('#settingsTab').click();
