@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lingo Notes",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "随手记，然后让AI帮你整理和复习",
   "minimum_chrome_version": "116",
   "permissions": ["contextMenus", "sidePanel", "activeTab", "scripting", "storage"],

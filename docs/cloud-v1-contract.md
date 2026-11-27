@@ -1,12 +1,18 @@
-# Lingo Notes cloud/5
+# Lingo Notes cloud/6
 
-2026-11-22。cloud/5新增可配置复习数量、逐点掌握和显式完成推进的间隔复习；继承cloud/4字体、cloud/3讲解语言与纯手机推送。ping的protocol为cloud/5，protocol_version为lingo-cloud/5。无Native Messaging、SQLite、Pages或WorkBuddy运行依赖。
+2026-11-27 增加可选的 `examples[].language`（`en` 或 `ja`）及复习卡 `example.language`。原文语言依据实际提交文字（包括 OCR 校正和重讲）判断，讲解语言独立。生成预览过滤语言冲突，完整结果冲突时返回已有 `INVALID_LESSON` 错误。旧内容缺语言字段按原有结果语言呈现。
+
+`push.status {fingerprint?}` 返回 `{device:"current"|"missing"|"other"}`。指纹以规范化的订阅地址、去除末尾填充的 p256dh 和 auth 数组 JSON 的 SHA-256 表示。新版 `push.test`、`push.unsubscribe` 可带同一指纹，核对调用者本机与真实待操作的订阅一致，旧客户端调用兼容。服务受理为 `accepted:true`，是否显示由真机证据确认。通知只含测试或每日批次类型及批次 ID。
+
+2026-11-23 扩展内部协调修复不改变本公共接口：新划词仅在发起窗口创建一次导航意图，立即显示对应任务；用户随后主动切页时，迟到结果不得再次切页。未提交的文字、修订及截图确认内容保留为可返回的编辑检查点。后台会话内的记录变更版本只用于侧栏之间失效/刷新历史，历史查询仍由服务端保持搜索与排序语义。连接恢复必须完成注册和同步、核对账号及连接代次；未知请求只能按原身份只读恢复，禁止自动重发模型请求。具体行为和验收见 [侧栏修复验证](selection-repair-validation.md)。
+
+cloud/5 引入可配置复习数量、逐点掌握和间隔安排。当前 ping 返回 `cloud/6` 和 `lingo-cloud/6`。运行依赖为 Chrome 扩展、PWA、Supabase 与 DeepSeek。
 
 项目 `brbymnycnxtfchffanvs`，URL `https://brbymnycnxtfchffanvs.supabase.co`。业务 POST `/functions/v1/app-api`，body `{action,params,request_id}`，用户 access token 放 Authorization，项目 publishable key 放 apikey。JSON `{ok:true,result}` 或 `{ok:false,error}`，错误不返回上游正文或密钥。
 
 学习请求直接 SSE：accepted/progress/complete/error；事件包含 request_id、record_id、revision，progress 含 sequence/preview，accepted/complete 含 record。只有真实持久化完成才 accepted；同一请求重复只查询、不重复计费。总期限120秒，断流后GET状态，不自动重发。
 
-动作：learning.submit/recognize/confirm/retry/recognizeRetry/cancel；records.get/history/delete；images.url；key.status/save/delete；settings.get/update；review.today/get/opened/cards/mastery/complete；push.subscribe/unsubscribe/test；telemetry.record；ping。
+动作：learning.submit/recognize/confirm/retry/recognizeRetry/cancel；records.get/history/delete；images.url；key.status/save/delete；settings.get/update；review.today/get/opened/cards/mastery/complete；push.status/subscribe/unsubscribe/test；telemetry.record；ping。
 
 记录：record_id、revision、local_date、status、input_type、original_text、recognized_text、corrected_text、context、source、result、image。result 为 language/summary_zh/vocabulary/grammar；词汇 term/reading/pos/meaning/examples，语法 point/explanation/examples；例句 text/translation。每次1–3点，每点3例。
 
@@ -18,11 +24,11 @@ refined的中文使用Noto Sans SC，英文标题及按钮使用Manrope、正文
 
 讲解语言explanation_language枚举zh/ja/en，账号默认zh。learning.submit/confirm/retry显式传入所选语言，参与幂等指纹；同一请求ID改语言报IDEMPOTENCY_CONFLICT。旧调用缺省语言仍为zh，保持原有hash结构；不读取变化中的账号偏好来重新解释旧请求。OCR只识别原文，不翻译。学习请求不隐式修改账号偏好。
 
-record.explanation_language是本次请求语言，result.explanation_language与progress.preview.explanation_language由服务端写入可信值。重试失败保留旧result及其语言。result.language继续表示原材料en/ja/mixed；summary_zh保留字段名，语义为所选语言的讲解摘要。概述、pos、meaning、语法point/explanation及example.translation用目标语言；原词、读音、例句原文用源语言。同语言的translation是简明同语释义。生成时按可信请求语言拒绝原样复制的例句释义，忽略标点、空格、全半角和大小写差异；失败返回INVALID_LESSON，不自动追加模型调用。模板版本lingo-cloud-5。
+record.explanation_language是本次请求语言，result.explanation_language与progress.preview.explanation_language由服务端写入可信值。重试失败保留旧result及其语言。result.language继续表示原材料en/ja/mixed；summary_zh保留字段名，语义为所选语言的讲解摘要。概述、pos、meaning、语法point/explanation及example.translation用目标语言；原词、读音、例句原文用源语言。同语言的translation是简明同语释义。生成时按可信请求语言拒绝原样复制的例句释义，忽略标点、空格、全半角和大小写差异；失败返回INVALID_LESSON，不自动追加模型调用。当前模板版本为 `lingo-cloud-6`。
 
 复习卡保留language表示例句源语言，新增explanation_language用于释义/译文，以及term_language用于标题字体与发音（词汇=原语言，语法标题=讲解语言）。旧结果缺讲解语言按zh，旧卡缺term_language沿用language。PWA读取现有内容，不再次调用模型翻译。账号恢复旧备份时补explanation_language=zh；不批量改写已有笔记。
 
-扩展界面语言复用账号explanation_language：选择时本地预览，确认保存后沿用，失败恢复原账号语言。打开旧结果不修改界面偏好；UI翻译只更新应用文案，保存的原文和讲解继续使用各自语言。扩展本地右键菜单语言缓存按当前会话账号隔离，不参与学习请求、幂等或模型调用；退出/切账号时不得沿用其他账号的缓存。本次不增加公共云端动作或数据库字段。
+扩展界面语言复用账号explanation_language：选择时本地预览，确认保存后沿用，失败恢复原账号语言。打开旧结果不修改界面偏好；UI翻译只更新应用文案，保存的原文和讲解继续使用各自语言。扩展本地右键菜单语言缓存按当前会话账号隔离，不参与学习请求、幂等或模型调用；退出/切账号时清理原账号缓存。
 
 复习提醒只通过手机推送。设置接口不再接受或返回邮件提醒字段，服务端不发送邮件、不创建或领取邮件投递。数据库旧邮件列和已投递审计保留，邮件开关强制关闭，待处理邮件投递转为 disabled。账号邮箱和密码登录保留。恢复旧版云端备份时补齐默认字体，且所有提醒仍按原恢复契约关闭。
 

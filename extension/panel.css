@@ -30,13 +30,18 @@ h1, h2, h3, h1.ui-text, h2.ui-text, h3.ui-text { font-family: var(--font-ui-head
 h1 { font-weight: var(--font-heading-weight, 600); }
 h1:lang(ja), h2:lang(ja), h3:lang(ja) { font-family: var(--font-ui-heading-ja, var(--font-ui-ja)); }
 h1.ui-text:lang(ja), h2.ui-text:lang(ja), h3.ui-text:lang(ja) { font-family: var(--font-ui-heading-ja, var(--font-ui-ja)); }
-main { padding: 18px; }
+main { max-inline-size: 46rem; margin-inline: auto; padding: clamp(12px, 4.6vw, 18px); }
+.primary-nav { max-inline-size: 44rem; margin-inline: auto; }
 .selection-queue { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px; margin-bottom: 16px; border-radius: 8px; background: #edf5e7; }
 .queue-copy { flex: 1 1 150px; min-width: 0; overflow-wrap: anywhere; }
 .selection-queue p { margin: 0; font-size: var(--composer-text-size); }
 .selection-queue .muted { font-size: var(--small-text-size); }
 .queue-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.queue-actions button { min-height: 36px; padding: 5px 9px; font-size: var(--composer-text-size); }
+.queue-actions button { min-height: 36px; max-width: 100%; padding: 5px 9px; font-size: var(--composer-text-size); overflow-wrap: anywhere; }
+.queue-connection { position: fixed; z-index: 30; inset: auto 14px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-height: min(160px, calc(100dvh - 100px)); overflow: auto; padding: 10px 12px; margin: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: 0 4px 18px #243b3220; }
+.queue-connection p { flex: 1 1 130px; min-width: 0; margin: 0; font-size: var(--small-text-size); overflow-wrap: anywhere; }
+.queue-connection button, .held-content button { max-width: 100%; min-height: 36px; padding: 5px 9px; font-size: var(--composer-text-size); white-space: normal; overflow-wrap: anywhere; }
+.held-content { margin-bottom: 12px; }
 button, summary { cursor: pointer; }
 button { font: inherit; font-family: var(--font-ui-button, var(--font-ui, "Segoe UI", "Microsoft YaHei", sans-serif)); font-weight: var(--font-button-weight, 500); line-height: 1.65; color: inherit; border: 1px solid #d8e0d7; border-radius: 8px; background: #fff; padding: 8px 13px; }
 button:lang(ja), summary:lang(ja) { font-family: var(--font-ui-button-ja, var(--font-ui-ja)); }
@@ -135,7 +140,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus
 [hidden] { display: none !important; }
 
 /* One reading size for headings, readings, explanations, examples and translations. */
-#lesson { display: grid; gap: 16px; overflow-wrap: anywhere; white-space: normal; }
+#lesson { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; overflow-wrap: anywhere; white-space: normal; }
 #lesson .lesson-overview { font-size: var(--text-size); line-height: 1.8; margin: 0; padding: 4px 2px 6px; white-space: pre-wrap; }
 #lesson .point { margin: 0; padding: 20px 18px; background: #fff; border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: 0 3px 12px #25573f05; min-width: 0; }
 #lesson .point h3 { font-size: var(--text-size); line-height: 1.8; overflow-wrap: anywhere; margin: 10px 0 4px; font-weight: var(--font-heading-weight, 600); }

@@ -5,7 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {build} from 'esbuild';
 import {chromium} from '@playwright/test';
-import {installSelectionQueueBridge} from './helpers/selection-background.mjs';
+import {installSelectionQueueBridge,eventually} from './helpers/selection-background.mjs';
 
 const apiOrigin='https://panel-navigation.example';
 const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -55,11 +55,13 @@ async function harness(t,{restoreProcessing=false,holdAccepted=false}={}){
           let controller,accepted=false;const encoder=new TextEncoder();
           const event=(type,value)=>encoder.encode('event: '+type+'\ndata: '+JSON.stringify({request_id:body.request_id,record_id:record.record_id,revision:1,...value})+'\n\n');
           const held=holdAccepted&&window.navStreams.length===0;
-          const releaseAccepted=()=>{if(!accepted){accepted=true;controller.enqueue(event('accepted',{sequence:1,record}));}};
-          const streamState={record,releaseAccepted,aborted:false};window.navStreams.push(streamState);init.signal.addEventListener('abort',()=>{streamState.aborted=true;},{once:true});
-          const stream=new ReadableStream({start(value){controller=value;if(!held)releaseAccepted();}});
-          window.navPreview=()=>controller.enqueue(event('progress',{sequence:2,preview:lesson}));
-          window.navComplete=async()=>{const complete={...record,status:'complete',result:lesson};window.navStreamRecord=complete;await window.navSaveStreamRecord(complete);controller.enqueue(event('complete',{sequence:3,record:complete}));controller.close();};
+          const enqueue=frame=>{if(streamState.closed){streamState.ignoredFrames++;return false;}controller.enqueue(frame);return true;};
+          const releaseAccepted=()=>{if(!accepted){accepted=true;enqueue(event('accepted',{sequence:1,record}));}};
+          const streamState={record,releaseAccepted,aborted:false,closed:false,ignoredFrames:0};window.navStreams.push(streamState);
+          const abort=()=>{streamState.aborted=true;if(!streamState.closed){streamState.closed=true;controller.error(new DOMException('Synthetic fetch aborted','AbortError'));}};
+          const stream=new ReadableStream({start(value){controller=value;if(init.signal.aborted)abort();else{init.signal.addEventListener('abort',abort,{once:true});if(!held)releaseAccepted();}},cancel(){streamState.closed=true;init.signal.removeEventListener('abort',abort);}});
+          window.navPreview=()=>enqueue(event('progress',{sequence:2,preview:lesson}));
+          window.navComplete=async()=>{const complete={...record,status:'complete',result:lesson};window.navStreamRecord=complete;await window.navSaveStreamRecord(complete);if(enqueue(event('complete',{sequence:3,record:complete}))){streamState.closed=true;init.signal.removeEventListener('abort',abort);controller.close();}};
           return new Response(stream,{headers:{'content-type':'text/event-stream'}});
         }
       }
@@ -92,7 +94,7 @@ async function harness(t,{restoreProcessing=false,holdAccepted=false}={}){
     const gate={};gate.started=new Promise(resolve=>{gate.startedResolve=resolve;});gate.releasePromise=new Promise(resolve=>{gate.release=resolve;});gates.set(id,gate);pendingGates.add(gate);return gate;
   };
   t.after(()=>{for(const gate of pendingGates)gate.release();});
-  await installSelectionQueueBridge(t,page,apiOrigin);
+  const host=await installSelectionQueueBridge(t,page,apiOrigin);
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   if(restoreProcessing)await page.locator('#cancelJob').waitFor();else await page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled);
   const selected=async id=>{assert.equal(await page.locator('#'+id).getAttribute('aria-current'),'page');assert.equal(await page.locator('nav [aria-current="page"]').count(),1);assert.equal(await page.locator('#'+id).evaluate(element=>element.classList.contains('is-active')),true);};
@@ -100,7 +102,7 @@ async function harness(t,{restoreProcessing=false,holdAccepted=false}={}){
   const openHistory=async()=>{await page.locator('#historyTab').click();await page.locator('.history-card').first().waitFor();await selected('historyTab');};
   const screenshot=async name=>{if(process.env.LINGO_NAV_SCREENSHOTS==='1'){await mkdir('.cache/navigation-ui',{recursive:true});await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'.cache/navigation-ui/'+name+'.png',fullPage:true});}};
   const clean=()=>{assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);};
-  return {page,state,calls,errors,unexpected,selected,historyCount,openHistory,holdRecord,screenshot,clean};
+  return {page,host,state,calls,errors,unexpected,selected,historyCount,openHistory,holdRecord,screenshot,clean};
 }
 
 test('history and settings preserve the hidden draft; New explicitly clears text, context and image preview',{timeout:60000},async t=>{
@@ -163,6 +165,12 @@ test('delayed capture preserves the current settings tab and original draft when
   assert.equal(await page.evaluate(()=>window.navCalls.some(call=>call.action.startsWith('learning.'))),false);clean();
 });
 
+test('a selection keeps screenshot preview and corrected OCR checkpoints available through the return action',{timeout:60000},async t=>{
+  const {page,host,state,openHistory,clean}=await harness(t);await page.locator('#sourceText').fill('An unsent draft before a screenshot.');await page.locator('#capture').click();await page.locator('#imageStage').waitFor();const preview=await page.locator('#cropPreview').getAttribute('src');
+  await host.select('A selection while the screenshot awaits confirmation.');await page.waitForFunction(()=>document.querySelector('#recordOriginal').textContent==='A selection while the screenshot awaits confirmation.');await page.locator('#restoreHeldContent').click();assert.equal(await page.locator('#imageStage').isVisible(),true);assert.equal(await page.locator('#cropPreview').getAttribute('src'),preview);assert.equal(await page.locator('#sourceText').inputValue(),'An unsent draft before a screenshot.');await page.evaluate(()=>window.navComplete());await eventually(()=>host.snapshot().active,value=>!value);assert.equal(await page.locator('#imageStage').isVisible(),true);assert.equal(await page.locator('#cropPreview').getAttribute('src'),preview);
+  await page.locator('#learnTab').click();const ocr={...makeRecord('ocr-checkpoint','', 'awaiting_review'),input_type:'image',recognized_text:'Original synthetic OCR text.',corrected_text:null};state.records=new Map([[ocr.record_id,ocr],...state.records]);await openHistory();await page.locator('.history-row[data-record-id="ocr-checkpoint"] .history-card').click();await page.locator('#reviewSection').waitFor();await page.locator('#corrected').fill('The manually corrected synthetic OCR text.');await host.select('A selection while OCR corrections await confirmation.');await page.waitForFunction(()=>document.querySelector('#recordOriginal').textContent==='A selection while OCR corrections await confirmation.');await page.locator('#restoreHeldContent').click();assert.equal(await page.locator('#reviewSection').isVisible(),true);assert.equal(await page.locator('#corrected').inputValue(),'The manually corrected synthetic OCR text.');assert.equal(await page.locator('#backToHistory').isVisible(),true);await page.evaluate(()=>window.navComplete());await eventually(()=>host.snapshot().active,value=>!value);assert.equal(await page.locator('#corrected').inputValue(),'The manually corrected synthetic OCR text.');assert.equal(await page.evaluate(()=>window.navCalls.filter(call=>call.action.startsWith('learning.')).length),2,'only the two selections query; screenshot and OCR confirmation stay explicit');clean();
+});
+
 test('reopening the sidebar from a history detail restores the saved workbench draft and context',{timeout:60000},async t=>{
   const {page,calls,selected,openHistory,clean}=await harness(t);
   await page.locator('#sourceText').fill('Draft that must survive a sidebar restart.');await page.waitForFunction(()=>document.querySelector('#draftContext').textContent==='Synthetic nearby context.');
@@ -183,14 +191,15 @@ test('background learning progress and completion do not steal navigation from h
   assert.equal(await page.evaluate(()=>window.navCalls.filter(call=>call.action==='learning.submit').length),1);clean();
 });
 
-test('explicit history entry refreshes a dirty server window while preserving its search, loaded pages and scroll',{timeout:60000},async t=>{
+test('explicit history entry refreshes a dirty server window while preserving its search, loaded pages and visible anchor',{timeout:60000},async t=>{
   const {page,calls,selected,openHistory,clean}=await harness(t);
+  await page.setViewportSize({width:390,height:500});
   await openHistory();await page.locator('#search').fill('Synthetic');await page.locator('#searchButton').click();await page.locator('#more').click();await page.waitForFunction(()=>document.querySelectorAll('.history-row').length===8);
-  await page.evaluate(()=>window.scrollTo(0,220));const scroll=await page.evaluate(()=>window.scrollY);
+  await page.evaluate(()=>window.scrollTo(0,100));const anchor=await page.evaluate(()=>{const top=document.querySelector('header').getBoundingClientRect().bottom,row=[...document.querySelectorAll('.history-row')].find(row=>row.getBoundingClientRect().bottom>top);return {id:row.dataset.recordId,top:row.getBoundingClientRect().top};});
   await page.locator('#learnTab').click();await page.locator('#sourceText').fill('Synthetic new note after the cached window.');await page.locator('#send').click();await page.locator('#cancelJob').waitFor();
   await page.locator('#settingsTab').click();await page.evaluate(()=>window.navComplete());await page.waitForFunction(()=>document.querySelector('#recordHeading').dataset.status==='complete');await selected('settingsTab');
   const before=calls.length;await page.locator('#historyTab').click();await page.waitForFunction(()=>document.querySelector('.history-text')?.textContent==='Synthetic new note after the cached window.');await selected('historyTab');
-  assert.equal(await page.locator('#search').inputValue(),'Synthetic');assert.equal(await page.locator('.history-row').count(),8);assert.ok(Math.abs(await page.evaluate(()=>window.scrollY)-scroll)<=1);
+  assert.equal(await page.locator('#search').inputValue(),'Synthetic');assert.equal(await page.locator('.history-row').count(),8);assert.ok(Math.abs(await page.locator(`[data-record-id="${anchor.id}"]`).evaluate(row=>row.getBoundingClientRect().top)-anchor.top)<=1);
   const reads=calls.slice(before).filter(call=>call.action==='records.history');assert.deepEqual(reads.map(call=>({query:call.params.query,offset:call.params.offset??0})),[{query:'Synthetic',offset:0},{query:'Synthetic',offset:4}]);
   await page.locator('.history-card').first().click();await page.locator('#backToHistory').waitFor();const count=calls.filter(call=>call.action==='records.history').length;await page.locator('#backToHistory').click();assert.equal(calls.filter(call=>call.action==='records.history').length,count,'returning from detail reuses the refreshed window');clean();
 });
@@ -213,12 +222,12 @@ test('deleting a saved record before its accepted event clears hidden draft requ
   const row=page.locator('.history-row').filter({has:page.locator('.history-card').filter({hasText:text})});assert.equal(await row.count(),1);
   page.once('dialog',dialog=>dialog.accept());await row.locator('.delete-record').click();await page.waitForFunction(()=>!window.navStores.session['panel:one']?.pending_submit&&window.navStreams[0].aborted);
   assert.equal(state.records.has(first.params.record_id),false);assert.equal(await row.count(),0);await selected('historyTab');
-  await page.evaluate(()=>window.navStreams[0].releaseAccepted());await page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled);await selected('historyTab');assert.equal(await page.locator('#historyView').isVisible(),true);
+  await page.evaluate(()=>window.navStreams[0].releaseAccepted());assert.equal(await page.evaluate(()=>window.navStreams[0].ignoredFrames),1,'an aborted fetch drops the deliberately late accepted frame');await page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled);await selected('historyTab');assert.equal(await page.locator('#historyView').isVisible(),true);
   assert.equal(await page.evaluate(()=>window.navStores.session['panel:one']?.pending_submit??null),null,'deleted pending request cannot remain as a sidebar recovery entry');
   await page.locator('#learnTab').click();assert.equal(await page.locator('#composer').isVisible(),true);assert.equal(await page.locator('#sourceText').inputValue(),'');await page.locator('#sourceText').fill(text);
   await page.locator('#send').click();await page.waitForFunction(()=>window.navCalls.filter(call=>call.action==='learning.submit').length===2);
   const second=await page.evaluate(()=>window.navCalls.filter(call=>call.action==='learning.submit')[1]);
   assert.notEqual(second.params.record_id,first.params.record_id,'resending the same text from New must allocate a new record ID');assert.notEqual(second.request_id,first.request_id,'the deleted request ID must not be restored from the hidden workbench snapshot');
   await page.locator('#cancelJob').waitFor();await page.evaluate(()=>window.navComplete());await page.waitForFunction(()=>document.querySelector('#recordHeading').dataset.status==='complete');
-  assert.equal(state.records.has(first.params.record_id),false);assert.equal(state.records.has(second.params.record_id),true);clean();
+  assert.equal(state.records.has(first.params.record_id),false);assert.equal(state.records.has(second.params.record_id),true);assert.equal(await page.evaluate(()=>new Set(window.navCalls.filter(call=>call.action==='learning.submit').map(call=>call.request_id)).size),2);clean();
 });

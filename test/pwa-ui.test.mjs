@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -74,7 +75,7 @@ test('PWA browser flow: password login, one-time setup, batch route, audio, hist
     if (body.action === 'settings.get' && staleSettings) { staleSettings = false; await route.fulfill({ status: 400, headers, body: JSON.stringify({ ok: false, error: 'SESSION_CHANGED' }) }); return; }
     let result = {};
     if (body.action === 'review.cards') result = { cards: [] };
-    if (body.action === 'review.get' || body.action === 'review.today') result = { batch: { id: 'batch-one', local_date: '2026-11-19', cards: [{ id: 'card-one', record_id: 'record-one', term: 'learn', reading: '/lɜːn/', language: 'en', meaning: '学习；学会', example: examples[0], local_date: '2026-11-18' }] } };
+    if (body.action === 'review.get' || body.action === 'review.today') result = { batch: { id: 'batch-one', local_date: new Date(Date.now() + 8 * 3600000).toISOString().slice(0,10), cards: [{ id: 'card-one', record_id: 'record-one', term: 'learn', reading: '/lɜːn/', language: 'en', meaning: '学习；学会', example: examples[0], local_date: '2026-11-18' }] } };
     if (body.action === 'records.history') result = { items: records.filter(item => item.text.includes(body.params.query || '')), has_more: false };
     if (body.action === 'records.get') {
       const japanese = body.params.record_id === 'record-two';
@@ -91,6 +92,11 @@ test('PWA browser flow: password login, one-time setup, batch route, audio, hist
     }
     if (body.action === 'key.status') result = { configured: true, last_four: '1234' };
     if (body.action === 'push.subscribe') { serverSubscription = body.params.subscription; result = { subscribed: true }; }
+    if (body.action === 'push.status' || body.action === 'push.test') {
+      const fingerprint = serverSubscription ? createHash('sha256').update(JSON.stringify([serverSubscription.endpoint,serverSubscription.keys.p256dh,serverSubscription.keys.auth])).digest('hex') : null;
+      const matches = Boolean(fingerprint && fingerprint === body.params.fingerprint);
+      result = body.action === 'push.status' ? {device:matches?'current':fingerprint?'other':'missing'} : {accepted:matches};
+    }
     await route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true, result }) });
   });
   await page.goto(`http://127.0.0.1:${server.address().port}/?batch=batch-one`);
@@ -257,23 +263,35 @@ test('PWA browser flow: password login, one-time setup, batch route, audio, hist
   await page.waitForFunction(() => [...document.querySelectorAll('button')].find(button => button.textContent === '发送测试通知')?.disabled === false);
   assert.equal(await page.evaluate(() => window.permissionRequests), 1);
   assert.equal(actions.filter(item => item.action === 'push.subscribe').length, 1);
-  assert.deepEqual(actions.slice(activationStart).map(item => item.action), ['push.subscribe', 'settings.update', 'settings.get']);
+  assert.deepEqual(actions.slice(activationStart,activationStart+4).map(item => item.action), ['push.subscribe', 'settings.update', 'settings.get', 'push.status']);
   assert.deepEqual(actions[activationStart + 1].params, { push_enabled: true });
   assert.equal(settings.push_enabled, true);
   assert.equal(await page.getByRole('switch', { name: /邮件提醒/ }).count(), 0);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+  await page.getByRole('button',{name:'发送测试通知',exact:true}).click();
+  await page.getByText('推送服务已受理测试，请查看这台设备的锁屏或通知中心。').waitFor();
+  assert.match(actions.find(item=>item.action==='push.test').params.fingerprint,/^[a-f0-9]{64}$/);
+  serverSubscription = {...serverSubscription, endpoint:'https://push.example/newer-synthetic-device'};
+  await page.waitForTimeout(510);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.getByText('通知连在另一台设备',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'发送测试通知',exact:true}).isDisabled(),true);
   settings.push_enabled = false;
   await page.evaluate(() => { Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'iPhone Safari' }); Notification.permission = 'default'; });
   await page.getByRole('button', { name: '今日复习', exact: true }).click();
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByText('先把 Lingo Notes 放到主屏幕', { exact: true }).waitFor();
+  await page.waitForTimeout(510);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await page.getByRole('button', { name: '开启通知', exact: true }).click();
   assert.equal(await page.evaluate(() => window.permissionRequests), 1, 'iPhone browser tab must not request permission before installation');
   const existingNotice = await page.locator('.notice').textContent();
   staleSettings = true;
   await page.getByRole('button', { name: '今日复习', exact: true }).click();
   await page.getByRole('button', { name: '设置', exact: true }).click();
-  await page.getByRole('button', { name: '重新读取', exact: true }).waitFor();
+  await page.waitForTimeout(510);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForFunction(() => document.querySelector('#explanation-mode') !== null);
   await page.waitForTimeout(100);
   assert.equal(await page.locator('.notice').textContent(), existingNotice, 'SESSION_CHANGED does not replace the current account notice');
   await page.getByRole('button', { name: '退出登录', exact: true }).click();

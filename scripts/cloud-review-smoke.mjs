@@ -34,7 +34,7 @@ export async function runReviewSmoke(){
     }
     const [a,b]=accounts;
     await check('cloud5_and_daily_limit_validation',async()=>{
-      requireThat((await a.cloud.call('ping')).protocol==='cloud/5','PROTOCOL_MISMATCH');
+      requireThat((await a.cloud.call('ping')).protocol==='cloud/6','PROTOCOL_MISMATCH');
       requireThat((await a.cloud.call('settings.get')).review_daily_limit===5,'DEFAULT_LIMIT_MISMATCH');
       for(const value of [0,101,1.5,'8'])await reject(a.cloud.call('settings.update',{review_daily_limit:value}),'INVALID_SETTINGS');
       await a.cloud.call('settings.update',{review_daily_limit:8,review_enabled:true,push_enabled:false});

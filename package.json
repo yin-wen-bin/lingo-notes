@@ -14,9 +14,11 @@
     "cloud:login": "supabase login --no-browser --agent no --output-format text",
     "cloud:probe": "node scripts/cloud-provider-probe.mjs",
     "cloud:deploy": "node scripts/cloud-deploy.mjs",
+    "deploy:self-host": "node scripts/deploy-self-host.mjs",
     "cloud:backup": "node scripts/cloud-backup.mjs",
     "cloud:restore": "node scripts/cloud-restore.mjs",
-    "package:extension": "node scripts/package-extension.mjs"
+    "package:extension": "node scripts/package-extension.mjs",
+    "package:edge": "node scripts/package-edge.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.0.0",

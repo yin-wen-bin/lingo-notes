@@ -3,23 +3,21 @@ import assert from 'node:assert/strict';
 import {randomUUID,webcrypto} from 'node:crypto';
 import vm from 'node:vm';
 import {build} from 'esbuild';
-import {explanationLanguage,withExplanationLanguage,lessonMessages,validateLesson,parseLesson,lessonDiagnostics,cardsForLesson} from '../supabase/functions/_shared/core.mjs';
+import {explanationLanguage,withExplanationLanguage,lessonMessages,validateLesson,parseLesson,lessonDiagnostics,cardsForLesson,lessonSource,sourceCheckedPreview} from '../supabase/functions/_shared/core.mjs';
 
 test('each explanation language has a complete localized example and same-language paraphrase instructions',()=>{
   const names={zh:'简体中文',ja:'日本語',en:'English'};
-  for(const target of ['zh','ja','en']){
+  for(const source of ['en','ja'])for(const target of ['zh','ja','en']){
     assert.equal(explanationLanguage(target),target);
-    const messages=lessonMessages({original_text:'Practice makes progress.',explanation_language:target});
+    const messages=lessonMessages({original_text:source==='ja'?'練習を続けると、少しずつ上達します。':'Practice makes progress.',explanation_language:target});
     assert.ok(messages[0].content.includes(`讲解语言固定为${names[target]}（${target}）`));
     assert.match(messages[0].content,/同语言的简明释义/);
     assert.match(messages[0].content,/term、reading和例句text保留学习材料的语言/);
     const example=JSON.parse(messages[0].content.split('\n').find(line=>line.startsWith('{')));
-    assert.deepEqual(validateLesson(example,target),example);
-    const source=target==='ja'?'ja':'en';
-    assert.equal(example.language,source);assert.equal(example.vocabulary[0].term,target==='ja'?'練習':'practice');
+    assert.deepEqual(validateLesson(example,target,source),example);
+    assert.equal(example.language,source);assert.equal(example.vocabulary[0].term,source==='ja'?'練習':'practice');
     const translations=[...example.vocabulary,...example.grammar].flatMap(p=>p.examples);
-    assert.equal(translations.length,6);assert.ok(translations.every(p=>p.text!==p.translation));
-    if(target==='en')assert.equal(/\p{Script=Han}/u.test(JSON.stringify(example)),false);
+    assert.equal(translations.length,6);assert.ok(translations.every(p=>p.text!==p.translation&&p.language===source));
     if(target==='ja')assert.match(example.summary_zh,/\p{Script=Hiragana}/u);
     const trusted=withExplanationLanguage({...example,explanation_language:'model-invented'},target);
     assert.equal(trusted.explanation_language,target);
@@ -29,6 +27,21 @@ test('each explanation language has a complete localized example and same-langua
     assert.deepEqual(cards[0].example,example.vocabulary[0].examples[0]);
   }
   for(const value of [null,undefined,'','fr','ZH',{},false,['en']])assert.throws(()=>explanationLanguage(value),/INVALID_EXPLANATION_LANGUAGE/);
+});
+
+test('corrected input fixes the source and mixed learning points reject a mismatched example before preview and save',()=>{
+  const record={original_text:'Something in English',corrected_text:'見えます。',explanation_language:'en'};
+  assert.equal(lessonSource(record),'ja');
+  assert.equal(lessonSource({original_text:'改善'}),null);
+  assert.equal(lessonSource({original_text:'We learn daily. 毎日学びます。'}),'mixed');
+  const ja=JSON.parse(lessonMessages(record)[0].content.split('\n').find(line=>line.startsWith('{')));
+  const en=JSON.parse(lessonMessages({original_text:'We learn daily.',explanation_language:'en'})[0].content.split('\n').find(line=>line.startsWith('{')));
+  assert.throws(()=>validateLesson(en,'en','ja'),error=>lessonDiagnostics(error)?.reason==='LESSON_SOURCE_LANGUAGE');
+  const mixed={language:'mixed',summary_zh:ja.summary_zh,vocabulary:[en.vocabulary[0]],grammar:[ja.grammar[0]]};
+  assert.deepEqual(validateLesson(mixed,'en','mixed'),mixed);
+  mixed.grammar[0].examples[1]={...en.grammar[0].examples[1],language:'ja'};
+  assert.throws(()=>validateLesson(mixed,'en','mixed'),error=>lessonDiagnostics(error)?.reason==='EXAMPLE_SOURCE_LANGUAGE');
+  assert.equal(sourceCheckedPreview(mixed,'en','mixed').grammar[0].examples.length,2);
 });
 
 test('same-language copies are rejected across vocabulary and grammar with trusted metadata and normalized comparison',()=>{

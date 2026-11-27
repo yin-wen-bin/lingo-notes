@@ -61,12 +61,12 @@ async function harness(t){
   return {page,state,calls,hold,open,readyCards,shot,clean};
 }
 
-test('integrated composer fits three languages and four font themes at 320/390; empty drafts hide material details',{timeout:90000},async t=>{
+test('integrated composer fits three languages and four fonts as width changes; resizing retains a draft',{timeout:90000},async t=>{
   const {page,shot,clean}=await harness(t);
   assert.equal(await page.locator('#draftDetails').isVisible(),false);assert.equal(await page.locator('#send').isDisabled(),true);
   for(const language of ['zh','ja','en']){
     await page.locator('#explanationLanguage').selectOption(language);await page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled);await page.locator('#notice').evaluate(e=>{e.hidden=true;});
-    for(const theme of ['refined','handwritten','bookish','clean'])for(const width of [390,320]){
+    for(const theme of ['refined','handwritten','bookish','clean'])for(const width of [390,320,540]){
       await page.setViewportSize({width,height:844});await page.evaluate(theme=>{document.documentElement.dataset.fontTheme=theme;},theme);await page.evaluate(()=>document.fonts.ready);
       const layout=await page.evaluate(()=>{const rect=id=>{const e=document.getElementById(id),r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height,size:getComputedStyle(e).fontSize};};return {overflow:document.documentElement.scrollWidth>innerWidth,source:rect('sourceText'),send:rect('send'),tools:['capture','filePick','explanationLanguage'].map(rect),integrated:['sourceText','capture','filePick','explanationLanguage'].every(id=>document.getElementById(id).closest('.composer-input')),icons:[...document.querySelectorAll('.input-tools img')].every(i=>i.complete&&i.naturalWidth>0)};});
       assert.equal(layout.overflow,false,`${language}/${theme}/${width}`);assert.ok(layout.integrated);assert.ok(layout.icons);assert.equal(layout.send.size,'15px');assert.equal(layout.source.size,'15px');
@@ -76,6 +76,12 @@ test('integrated composer fits three languages and four font themes at 320/390; 
     }
   }
   await page.locator('#explanationLanguage').selectOption('zh');await page.waitForFunction(()=>!document.querySelector('#explanationLanguage').disabled);await page.setViewportSize({width:390,height:844});await page.locator('#sourceText').fill('少しずつ上達しています。');await page.locator('#draftDetails').waitFor();assert.equal(await page.locator('#send').isDisabled(),false);
+  for(const width of [320,540,390]){
+    await page.setViewportSize({width,height:844});
+    assert.equal(await page.locator('#sourceText').inputValue(),'少しずつ上達しています。');
+    assert.equal(await page.locator('#draftDetails').isVisible(),true);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  }
   await page.waitForFunction(()=>document.querySelector('#contextStatus').textContent.includes('已从原网页'));await shot('composer-filled-zh-390');await page.locator('#learnTab').click();assert.equal(await page.locator('#draftDetails').isVisible(),false);assert.equal(await page.locator('#send').isDisabled(),true);clean();
 });
 

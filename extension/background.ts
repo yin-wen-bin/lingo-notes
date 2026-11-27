@@ -77,13 +77,15 @@ chrome.tabs.onActivated.addListener(({tabId,windowId})=>{const binding=captures.
 chrome.tabs.onUpdated.addListener((tabId,change)=>{if(change.url||change.status==='loading')for(const b of captures.values())if(b.tabId===tabId)cancelCapture(b);});
 const panels=new Set<chrome.runtime.Port>();
 const registeredPanels=new Map<chrome.runtime.Port,QueueIdentity>();
+const latestPanelByClient=new Map<string,{port:chrome.runtime.Port;order:number}>();
+const panelOrder=new Map<chrome.runtime.Port,number>();let nextPanelOrder=0;
 let selectionQueue:SelectionQueue|null=null,selectionOperations:Promise<unknown>=Promise.resolve();
 function publishSelection(snapshot:QueueSnapshot){
-  for(const [port,identity] of registeredPanels)if(identity.owner===snapshot.owner)try{port.postMessage({event:'selection-queue.changed',snapshot});}catch{}
+  for(const [port,identity] of registeredPanels)if(identity.owner===snapshot.owner&&latestPanelByClient.get(identity.clientId)?.port===port)try{port.postMessage({event:'selection-queue.changed',snapshot});}catch{}
 }
 function selections(){return selectionQueue??=new SelectionQueue(chrome.storage.session,publishSelection);}
 function selectionOperation<T>(task:()=>Promise<T>):Promise<T>{const operation=selectionOperations.catch(()=>{}).then(task);selectionOperations=operation;return operation;}
-function validIdentity(identity:any):identity is QueueIdentity{return !!identity&&typeof identity.clientId==='string'&&identity.clientId.length>0&&Number.isInteger(identity.windowId)&&(identity.owner===null||typeof identity.owner==='string');}
+function validIdentity(identity:any):identity is QueueIdentity{return !!identity&&typeof identity.clientId==='string'&&identity.clientId.length>0&&Number.isInteger(identity.windowId)&&(identity.owner===null||typeof identity.owner==='string')&&(identity.transportId===undefined||typeof identity.transportId==='string'&&identity.transportId.length>0&&identity.transportId.length<=256);}
 async function collectSelection(job:{id:string;owner:string|null},tab:chrome.tabs.Tab,frameId:number,text:string,source:any){
   let timer:ReturnType<typeof setTimeout>|undefined;
   const unavailable:QueueMaterial={text,source,context:'',status:'timeout'};
@@ -129,20 +131,33 @@ chrome.contextMenus.onClicked.addListener((info,tab)=>{
 chrome.runtime.onConnect.addListener(port=>{
   if(port.name!=='learning-panel'||port.sender?.id!==chrome.runtime.id||port.sender.url!==PANEL)return;
   panels.add(port);
+  panelOrder.set(port,++nextPanelOrder);
   port.onMessage.addListener(message=>{
     if(message?.kind!=='selection-queue.register'||!validIdentity(message))return;
-    const identity:QueueIdentity={clientId:message.clientId,owner:message.owner,windowId:message.windowId};
+    const identity:QueueIdentity={clientId:message.clientId,owner:message.owner,windowId:message.windowId,...(message.transportId?{transportId:message.transportId}:{})};
     void selectionOperation(async()=>{
-      if(!panels.has(port))return;
+      const order=panelOrder.get(port);if(!panels.has(port)||order===undefined)return;
       if((await uiIdentity()).owner!==identity.owner)throw Error('SESSION_CHANGED');
-      const old=registeredPanels.get(port);if(old&&old.clientId!==identity.clientId)await selections().disconnect(old.clientId,old.owner);
+      if(!panels.has(port)||panelOrder.get(port)!==order)return;
+      const latest=latestPanelByClient.get(identity.clientId);if(latest&&latest.order>order)throw Error('QUEUE_UNAVAILABLE');
+      const old=registeredPanels.get(port);
+      if(old&&old.clientId!==identity.clientId&&latestPanelByClient.get(old.clientId)?.port===port){latestPanelByClient.delete(old.clientId);await selections().disconnect(old.clientId,old.owner);}
+      if(latest&&latest.port!==port){
+        registeredPanels.delete(latest.port);panels.delete(latest.port);panelOrder.delete(latest.port);
+        try{latest.port.disconnect();}catch{/* A superseded transport has no queue ownership. */}
+      }
+      latestPanelByClient.set(identity.clientId,{port,order});
       registeredPanels.set(port,identity);selections().register(identity);await selections().syncOwner(identity.owner);
-      port.postMessage({event:'selection-queue.registered',...identity});
+      if(panels.has(port)&&latestPanelByClient.get(identity.clientId)?.port===port)port.postMessage({event:'selection-queue.registered',...identity});
     }).catch(error=>{try{port.postMessage({event:'selection-queue.error',error:error.message??'REQUEST_FAILED',...identity});}catch{}});
   });
   port.onDisconnect.addListener(()=>{
-    panels.delete(port);const identity=registeredPanels.get(port);registeredPanels.delete(port);
-    if(identity)void selectionOperation(async()=>selections().disconnect(identity.clientId,identity.owner)).catch(()=>{});
+    panels.delete(port);panelOrder.delete(port);const identity=registeredPanels.get(port);registeredPanels.delete(port);
+    if(identity)void selectionOperation(async()=>{
+      // Check at execution time: a replacement registration may already be queued.
+      if(latestPanelByClient.get(identity.clientId)?.port!==port)return;
+      latestPanelByClient.delete(identity.clientId);await selections().disconnect(identity.clientId,identity.owner);
+    }).catch(()=>{});
     if(!panels.size)for(const binding of captures.values())cancelCapture(binding);
   });
 });
@@ -151,7 +166,8 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   (async()=>{
     if(message.kind==='selection-queue')return selectionOperation(async()=>{
       if(!validIdentity(message)||(await uiIdentity()).owner!==message.owner)throw Error('SESSION_CHANGED');
-      if(![...registeredPanels.values()].some(identity=>identity.clientId===message.clientId&&identity.owner===message.owner&&identity.windowId===message.windowId))throw Error('UNTRUSTED_SENDER');
+      const latest=latestPanelByClient.get(message.clientId),identity=latest&&registeredPanels.get(latest.port);
+      if(!latest||!panels.has(latest.port)||!identity||identity.owner!==message.owner||identity.windowId!==message.windowId||identity.transportId!==message.transportId)throw Error('UNTRUSTED_SENDER');
       const command=message as QueueCommand,result=await selections().command(command);
       if(command.op==='manual'&&result.draft){
         for(const [port,identity] of registeredPanels)if(identity.owner===message.owner&&identity.windowId===message.windowId)try{port.postMessage({event:'draft.changed',draft:result.draft});}catch{}

@@ -83,7 +83,7 @@ test('PWA renders saved explanation languages, same-language glosses and mixed r
     if (body.action === 'settings.get') result = { font_theme: 'clean', explanation_language: 'en', review_enabled: false, push_enabled: false };
     else if (body.action === 'records.get') result = record(cases.find(item => item.id === body.params.record_id));
     else if (body.action === 'review.cards') result = { cards: [] };
-    else if (body.action === 'review.today') result = { batch: { id: 'mixed-review', local_date: '2026-11-20', cards } };
+    else if (body.action === 'review.today') result = { batch: { id: 'mixed-review', local_date: new Date(Date.now() + 8 * 3600000).toISOString().slice(0,10), cards } };
     else if (body.action === 'review.opened') result = {};
     else throw Error('UNEXPECTED_ACTION:' + body.action);
     await route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true, result }) });
@@ -113,11 +113,12 @@ test('PWA renders saved explanation languages, same-language glosses and mixed r
     assert.equal(await item.locator('.meaning').getAttribute('lang'), explanationLang(card.explanation_language));
     assert.equal(await item.locator('.translation').getAttribute('lang'), explanationLang(card.explanation_language));
     assert.equal(await item.locator('.example-original p').getAttribute('lang'), card.language);
-    await item.locator('.reading .sound-button').click();
-    assert.deepEqual(await page.evaluate(() => window.spoken.at(-1)), speechContent(card.term, term.reading, term.language));
+    if (index === 0) {
+      await item.locator('.reading .sound-button').click();
+      assert.deepEqual(await page.evaluate(() => window.spoken.at(-1)), speechContent(card.term, term.reading, term.language));
+    } else assert.equal(await item.locator('.reading .sound-button').count(),0,'grammar titles are not spoken');
     await item.locator('.example-original .sound-button').click();
     assert.deepEqual(await page.evaluate(() => window.spoken.at(-1)), speechContent(card.example.text, '', card.language));
-    if (index) assert.notEqual(await item.locator('.reading > span').textContent(), card.reading);
   }
   assert.deepEqual(unexpected, []); assert.deepEqual(errors, []);
   assert.ok(actions.every(action => ['settings.get', 'records.get', 'review.cards', 'review.today', 'review.opened'].includes(action)));

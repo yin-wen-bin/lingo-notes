@@ -1,11 +1,12 @@
 import {hasLearningText} from './learning-ui';
-import {HistoryList} from './history';
+import {HistoryList,HistoryRefreshScheduler} from './history';
 import {PanelNavigation, type PanelRoute} from './navigation';
 import {WordSpeech, type SpeechMessage} from './speech';
 import {translate, type UiLanguage, type UiValues} from './panel-i18n';
 import {PanelSessionState, PrivateImageUrls} from './panel-cloud';
 import {SelectionQueueClient} from './selection-client';
-import type {QueueJob,QueueSnapshot,ManualSelection} from './selection-queue';
+import {SELECTION_QUEUE_KEY,type QueueJob,type QueueSnapshot,type ManualSelection} from './selection-queue';
+import {SelectionPresentationCursor,RecordChangeNotifier,hasUnsubmittedContent} from './selection-presentation';
 import {createCloudClient, type CloudSession} from '../shared/cloud-client';
 import {applyFontTheme, FONT_THEMES, normalizeFontTheme, type FontTheme} from '../shared/typography/theme';
 import type {ExplanationLanguage} from '../shared/cloud-types';
@@ -19,7 +20,7 @@ const cloud=createCloudClient({url:cloudUrl,publishableKey:typeof __SUPABASE_PUB
 }});
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const field=(id:string)=>$<HTMLTextAreaElement>(id);
-const show=(id:string,visible:boolean)=>$(id).hidden=!visible;
+const show=(id:string,visible:boolean)=>{const node=$(id);if(node.hidden===visible)node.hidden=!visible;};
 let uiLanguage:UiLanguage='zh';
 type Values=UiValues|(()=>UiValues);
 type UiBinding={key:string,values?:Values};
@@ -28,12 +29,13 @@ const uiLang=()=>uiLanguage==='zh'?'zh-CN':uiLanguage;
 const tr=(key:string,values?:UiValues)=>translate(uiLanguage,key,values);
 function renderUiBinding(element:HTMLElement,target:string,binding:UiBinding){
   const text=tr(binding.key,typeof binding.values==='function'?binding.values():binding.values);
-  if(target==='text'){element.textContent=text;element.lang=uiLang();}else element.setAttribute(target,text);
+  if(target==='text'){if(element.textContent!==text)element.textContent=text;if(element.lang!==uiLang())element.lang=uiLang();}
+  else if(element.getAttribute(target)!==text)element.setAttribute(target,text);
 }
 function bindUi(element:HTMLElement|string,key:string,values?:Values,target='text'){
   const node=typeof element==='string'?$(element):element;
   let bindings=uiBindings.get(node);if(!bindings){bindings=new Map();uiBindings.set(node,bindings);}
-  bindings.set(target,{key,values});node.dataset.uiBound='';renderUiBinding(node,target,{key,values});return node;
+  bindings.set(target,{key,values});if(!node.hasAttribute('data-ui-bound'))node.dataset.uiBound='';renderUiBinding(node,target,{key,values});return node;
 }
 function unbindUi(element:HTMLElement){uiBindings.delete(element);delete element.dataset.uiBound;}
 function setUiLanguage(language:UiLanguage){
@@ -58,7 +60,7 @@ const errors:Record<string,string>={LOGIN_REQUIRED:'请在“连接与设置”�
 Object.assign(errors,{DEEPSEEK_KEY_REQUIRED:errors.KEY_REQUIRED,DEEPSEEK_KEY_INVALID:'DeepSeek Key 未通过验证，请在“连接与设置”更新。',DEEPSEEK_BALANCE_INSUFFICIENT:'DeepSeek 账户余额不足，请在厂商处检查额度。',DEEPSEEK_RATE_LIMIT:'DeepSeek 暂时限流，请稍后手动重试。',KEY_UNAVAILABLE:'暂时无法读取已保存的 Key，请稍后检查连接。',INVALID_API_KEY:'Key 格式不正确，请检查后重新填写。',REQUEST_INTERRUPTED_RESULT_UNKNOWN:errors.RESULT_UNKNOWN,REQUEST_FAILED_RESULT_UNKNOWN:errors.RESULT_UNKNOWN,MODEL_OUTPUT_INCOMPLETE:'模型未返回完整讲解；材料已保存，重试可能再次产生 API 费用。',INVALID_LESSON:'本次讲解未通过完整性检查；材料已保存，可手动重新讲解。',CANCELLED_REQUEST_MAY_HAVE_BEEN_SENT:'请求已取消；已发生的 API 费用不保证撤回。',REQUEST_NOT_ACTIVE:'本次请求已结束，请从历史查看最终状态。',IMAGE_NOT_SAVED:'截图未成功保存，请重新框选或选择图片。',IMAGE_NOT_FOUND:'截图暂时无法读取，请刷新记录后再试。',IMAGE_URL_INVALID:'截图链接校验未通过，请重新读取。',RECORD_NOT_FOUND:'这条记录已不存在，请刷新历史。'});
 let current:any=null,material:any={context:'',status:'unavailable',source:null,binding:null},draftNonce='';
 Object.assign(errors,{LANGUAGE_NOT_READY:'尚未读取讲解语言，请检查连接后重试。',INVALID_EXPLANATION_LANGUAGE:'请选择中文、日语或英语作为讲解语言。',LANGUAGE_NOT_CONFIRMED:'尚未确认讲解语言已保存，请检查连接后重试。'});
-errors.QUEUE_UNAVAILABLE='查询队列暂时无法连接，请重新打开侧栏。';
+errors.QUEUE_UNAVAILABLE='查询连接暂时不可用，请点击“重试连接”。';
 let accountId:string|null|undefined,accountEpoch=0,displayEpoch=0;
 let fontTheme:FontTheme='refined',confirmedFontTheme:FontTheme='refined',fontVersion=0,savingFont=false,fontReady=false;
 let diagnosisVersion=0,keyMutationVersion=0,savingKey=false,keyConfigured:boolean|null=null,keyLastFour='',keyEditorTouched=false;
@@ -73,7 +75,7 @@ const languageNames={zh:'中文',ja:'日语',en:'英语'};
 const normalizeLanguage=(value:unknown):ExplanationLanguage=>value==='en'||value==='ja'?value:'zh';
 let preferredLanguage:ExplanationLanguage='zh',languageReady=false,savingLanguage=false,languageVersion=0,selectionVersion=0;
 let preparingLearning:symbol|null=null;
-let activeStream:{recordId:string,requestId:string,controller:AbortController}|null=null;
+let activeStream:{jobId:string,recordId:string,requestId:string,controller:AbortController}|null=null;
 const sessionState=new PanelSessionState(chrome.storage.session);
 let pendingSubmit:any=null,pendingImage:any=null,cropped:string|null=null,contextToken=0;
 let progressSequence=0,progressRequest='';const deletedRecords=new Set<string>();
@@ -81,15 +83,24 @@ let imagePreviousMaterial:any=null;
 let imageUrl:string|null=null,imageRecord='',imageLoading=false,debounce:ReturnType<typeof setTimeout>;
 let polling=false;
 type ContentSnapshot={current:any;material:any;pendingSubmit:any;pendingImage:any;cropped:string|null;imagePreviousMaterial:any;stage:string;retryOpen:boolean;detailsOpen:boolean;draftDetailsOpen:boolean;progressSequence:number;progressRequest:string;preview:any;fields:Record<string,string>;languages:Record<string,{value:string,confirmed?:string}>;scroll:number};
-type ContentSlot={epoch:number;snapshot:ContentSnapshot|null};
+type ContentSlot={epoch:number;snapshot:ContentSnapshot|null;queueJobId?:string;queueRenderKey?:string};
 const navigation=new PanelNavigation();
 let workspaceSlot:ContentSlot={epoch:0,snapshot:null},historySlot:ContentSlot|null=null,activeContent:ContentSlot=workspaceSlot;
 let settingsScroll=0;
 const selectionSlots=new Map<string,ContentSlot>();
+const skippedRecordRequests=new Set<string>();
 let queueSnapshot:QueueSnapshot|null=null,queuePumping=false,queueRecovering=false,queueKeyCheck:Promise<boolean>|null=null;
 let manualSelection:ManualSelection|null=null,queueDisplayJob:string|null=null;
-const selectionQueue=new SelectionQueueClient(receiveQueueSnapshot,()=>{syncLanguageControls();},draft=>{void loadDraft(draft).catch(failure);});
-const navigationButtons=new Set(['learnTab','historyTab','settingsTab','backToHistory']);
+type HeldContent={slot:ContentSlot;role:'workspace'|'history'|'selection';jobId?:string};
+let heldContent:HeldContent|null=null;
+const presentationCursor=new SelectionPresentationCursor();
+let pendingPresentationAck:{jobId:string;sequence:number}|null=null,presentationAck:Promise<void>|null=null,recordsVersion=0;
+let queueConnectionState:'connecting'|'ready'|'retrying'|'closed'='connecting',queueWake:Promise<void>|null=null;
+let queueConnectionTimer:ReturnType<typeof setTimeout>|null=null;
+const selectionQueue=new SelectionQueueClient(receiveQueueSnapshot,()=>{syncLanguageControls();},draft=>{void loadDraft(draft).catch(failure);},state=>{
+  queueConnectionState=state;renderQueueConnection();syncLanguageControls();
+});
+const navigationButtons=new Set(['learnTab','historyTab','settingsTab','backToHistory','restoreHeldContent']);
 let lastPreview:any=null;
 function notice(key='',values?:Values){bindUi('notice',key,values);show('notice',!!key);}
 function failure(error:any){if(error?.message==='SESSION_CHANGED')return;notice(errors[error?.message]??'操作未完成。已保存内容可从历史查看，请稍后重试。');}
@@ -167,6 +178,10 @@ function selectedLanguage(id:typeof languageSelects[number]){
 }
 const privateImages=new PrivateImageUrls(recordId=>api('images.url',{record_id:recordId}),cloudUrl);
 const historyList=new HistoryList<any>((query,offset)=>api('records.history',{query,offset}));
+type HistoryAnchor={recordId:string;top:number;scroll:number};
+let historyAnchor:HistoryAnchor|null=null;
+const recordNotices=new RecordChangeNotifier(notice=>selectionQueue.command('record-changed',notice));
+const historyRefresh=new HistoryRefreshScheduler(refreshHistoryView,()=>navigation.route==='history'&&historyList.hasLoaded);
 const speechMessages=new Map<string,UiBinding>();
 function speechMessage(code:SpeechMessage,voiceLanguage?:string){
   const key=code==='voiceMissing'?'当前浏览器没有{language}语音。请在 Windows 语言设置中添加对应语音后重新打开侧栏。':code==='playFailed'?'发音未能播放，请检查声音或稍后重试。':'当前浏览器无法播放发音，请重新打开侧栏后重试。';
@@ -229,7 +244,7 @@ function captureContent():ContentSnapshot{
 }
 function emptyContent():ContentSnapshot{return {current:null,material:{context:'',status:'unavailable',source:null,binding:null},pendingSubmit:null,pendingImage:null,cropped:null,imagePreviousMaterial:null,stage:'composer',retryOpen:false,detailsOpen:false,draftDetailsOpen:false,progressSequence:0,progressRequest:'',preview:null,fields:{sourceText:'',corrected:'',retryText:''},languages:Object.fromEntries(languageSelects.map(id=>[id,{value:preferredLanguage}])),scroll:0};}
 function rememberVisibleScroll(){
-  if(navigation.route==='history')historyList.rememberScroll(window.scrollY);
+  if(navigation.route==='history'){historyList.rememberScroll(window.scrollY);historyAnchor=captureHistoryAnchor();}
   else if(navigation.route==='settings')settingsScroll=window.scrollY;
   else activeContent.snapshot=captureContent();
 }
@@ -242,7 +257,8 @@ function showRoute(route:PanelRoute,remember=true){
   }
   show('backToHistory',route==='history-detail');
   const scroll=route==='history'?historyList.state.scroll:route==='settings'?settingsScroll:activeContent.snapshot?.scroll??0,ticket=navigation.ticket();
-  requestAnimationFrame(()=>{if(navigation.isCurrent(ticket))window.scrollTo({top:scroll});});
+  requestAnimationFrame(()=>{if(navigation.isCurrent(ticket)){if(route==='history')restoreHistoryAnchor(historyAnchor,historyList.state.scroll);else window.scrollTo({top:scroll});}});
+  if(route==='history')queueMicrotask(()=>historyRefresh.schedule());
 }
 function view(name:string){showRoute(name==='learn'&&activeContent===historySlot?'history-detail':name as PanelRoute);}
 function applyContent(snapshot:ContentSnapshot){
@@ -264,12 +280,56 @@ function switchContent(slot:ContentSlot){
   activeContent=slot;applyContent(slot.snapshot??emptyContent());
 }
 async function showHistoryList(){
-  const refresh=historyList.needsRefresh&&(navigation.route==='learn'||navigation.route==='settings');rememberVisibleScroll();showRoute('history',false);notice();
+  rememberVisibleScroll();showRoute('history',false);notice();
   if(historyList.hasLoaded){
-    if(refresh){const request=historyList.refresh();$<HTMLButtonElement>('more').disabled=true;try{if(!await request)return;}finally{$<HTMLButtonElement>('more').disabled=historyList.loading;}}
-    renderHistory();const ticket=navigation.ticket();if(navigation.route==='history')requestAnimationFrame(()=>{if(navigation.isCurrent(ticket))window.scrollTo({top:historyList.state.scroll});});
+    const epoch=accountEpoch,ticket=navigation.ticket(),anchor=historyAnchor;renderHistory();
+    if(historyList.needsRefresh)await historyRefresh.flush();
+    if(epoch===accountEpoch&&navigation.route==='history'&&navigation.isCurrent(ticket)){renderHistory();restoreHistoryAnchor(anchor,historyList.state.scroll);}
   }
   else if(!historyList.loading)await history();
+}
+function renderHeldContent(){show('heldContent',!!heldContent);}
+function preserveUnsubmittedContent(){
+  if(heldContent)return;
+  const snapshot=captureContent();if(!hasUnsubmittedContent(snapshot))return;
+  const entry=[...selectionSlots].find(([jobId,slot])=>slot===activeContent&&slot.queueJobId===jobId);
+  heldContent={slot:{epoch:accountEpoch,snapshot:structuredClone(snapshot),queueJobId:activeContent.queueJobId,queueRenderKey:activeContent.queueRenderKey},role:activeContent===workspaceSlot?'workspace':activeContent===historySlot?'history':entry?'selection':'workspace',jobId:entry?.[0]};
+  renderHeldContent();
+}
+async function restoreHeldContent(){
+  const held=heldContent;if(!held)return;heldContent=null;
+  if(held.role==='history')historySlot=held.slot;
+  else if(held.role==='selection'&&held.jobId)selectionSlots.set(held.jobId,held.slot);
+  else workspaceSlot=held.slot;
+  switchContent(held.slot);showRoute(held.role==='history'?'history-detail':'learn');queueDisplayJob=held.role==='selection'?held.jobId??null:null;renderHeldContent();notice();
+}
+function captureHistoryAnchor():HistoryAnchor|null {
+  const top=document.querySelector('header')?.getBoundingClientRect().bottom??0;
+  const row=[...document.querySelectorAll<HTMLElement>('#historyList .history-row')].find(item=>item.getBoundingClientRect().bottom>top);
+  return row?.dataset.recordId?{recordId:row.dataset.recordId,top:row.getBoundingClientRect().top,scroll:window.scrollY}:null;
+}
+function restoreHistoryAnchor(anchor:HistoryAnchor|null,scroll:number){
+  const row=anchor?[...document.querySelectorAll<HTMLElement>('#historyList .history-row')].find(item=>item.dataset.recordId===anchor.recordId):null;
+  window.scrollTo({top:row&&anchor?window.scrollY+row.getBoundingClientRect().top-anchor.top:scroll});
+  historyList.rememberScroll(window.scrollY);historyAnchor=captureHistoryAnchor();
+}
+async function refreshHistoryView():Promise<boolean>{
+  if(navigation.route!=='history'||!historyList.hasLoaded||historyList.loading||!historyList.needsRefresh)return false;
+  const epoch=accountEpoch,ticket=navigation.ticket(),anchor=captureHistoryAnchor()??historyAnchor,scroll=historyList.state.scroll;
+  $<HTMLButtonElement>('more').disabled=true;
+  try{
+    if(!await historyList.refresh()||epoch!==accountEpoch)return false;
+    if(navigation.route==='history'&&navigation.isCurrent(ticket)){renderHistory();restoreHistoryAnchor(anchor,anchor?.scroll??scroll);}
+    return historyList.needsRefresh;
+  }catch(error){if(epoch===accountEpoch&&navigation.route==='history')failure(error);return false;}
+  finally{if(epoch===accountEpoch)$<HTMLButtonElement>('more').disabled=historyList.loading;}
+}
+function markHistoryDirty(){historyList.markDirty();historyRefresh.schedule();}
+function recordChanged(record:any,status=record?.status){
+  if(!record?.record_id)return;
+  const revision=Number.isInteger(record.revision)&&record.revision>0?record.revision:1;
+  if(!recordNotices.changed({recordId:record.record_id,revision,status}))return;
+  markHistoryDirty();void recordNotices.flush();
 }
 function stage(name:string,activate=true){for(const item of ['composer','imageStage','recordSection'])show(item,item===name);if(activate)view('learn');}
 function link(id:string,source:any){const a=$<HTMLAnchorElement>(id);show(id,false);a.removeAttribute('href');if(!source?.url)return;try{const u=new URL(source.url);if(!['http:','https:'].includes(u.protocol))return;a.href=u.href;a.textContent=source.title||u.hostname;a.lang='zh-CN';show(id,true);}catch{}}
@@ -294,7 +354,7 @@ function previewImage(image:string,nextMaterial:any,slot=activeContent){
 }
 function releaseStoredImage(){privateImages.clear();imageRecord='';imageLoading=false;if(imageUrl)URL.revokeObjectURL(imageUrl);imageUrl=null;$<HTMLDialogElement>('imageDialog').close();for(const id of ['recordImage','fullImage'])$<HTMLImageElement>(id).removeAttribute('src');show('openImage',false);}
 async function bindRecord(id:string){if(material.binding)await sessionState.set({['binding:'+id]:material.binding});}
-function retainedContent(slot:ContentSlot){return slot.epoch===accountEpoch&&(slot===workspaceSlot||slot===historySlot||[...selectionSlots.values()].includes(slot));}
+function retainedContent(slot:ContentSlot){return slot.epoch===accountEpoch&&(slot===workspaceSlot||slot===historySlot||slot===heldContent?.slot||[...selectionSlots.values()].includes(slot));}
 function contentRecord(slot:ContentSlot){return slot===activeContent?current:slot.snapshot?.current;}
 function contentVisible(slot:ContentSlot){return slot===activeContent&&navigation.visibleView==='learn';}
 function syncHistoryRecord(record:any){
@@ -303,6 +363,8 @@ function syncHistoryRecord(record:any){
 function updateRecord(slot:ContentSlot,record:any){
   if(!retainedContent(slot)||!record||deletedRecords.has(record.record_id))return;
   const previous=contentRecord(slot);if(previous?.record_id===record.record_id&&previous.revision>record.revision)return;syncHistoryRecord(record);
+  // A recovery read may return the same persisted record while a preview or speech is still in use.
+  if(previous&&JSON.stringify(previous)===JSON.stringify(record))return;
   if(slot===activeContent){if(current?.record_id!==record.record_id)++contextToken;if(record.input_type!=='image'||record.image)releaseImage();render(record);return;}
   const snapshot=slot.snapshot??emptyContent(),changed=previous?.record_id!==record.record_id||previous?.revision!==record.revision;
   snapshot.current=record;snapshot.stage='recordSection';
@@ -357,11 +419,13 @@ function renderLesson(record:any){
   const reviewRows:ReviewMount['rows']=[];
   const points=[...(record.result.vocabulary??[]),...(record.result.grammar??[])];
   for(const [slot,point] of points.entries()){
+    const exampleLanguage=point.examples?.[0]?.language;
+    const termLanguage=exampleLanguage==='en'||exampleLanguage==='ja'?exampleLanguage:language;
     const block=document.createElement('article');block.className='point';
     const tag=uiPara(point.term?'词汇':'语法','point-label ui-text');
     const heading=document.createElement('h3');heading.lang='zh-CN';heading.className='ui-text';
     if(point.term){
-      const term=document.createElement('span');term.className='term-text learning-title';term.textContent=point.term;setLearningLanguage(term,language);heading.append(term);
+      const term=document.createElement('span');term.className='term-text learning-title';term.textContent=point.term;setLearningLanguage(term,termLanguage);heading.append(term);
       if(point.pos){const pos=document.createElement('span');pos.className='part-of-speech ui-text';setLearningLanguage(pos,explanationLanguage);pos.textContent=' · '+point.pos;heading.append(pos);}
     }else{heading.textContent=point.point;setLearningLanguage(heading,explanationLanguage);}
     const top=document.createElement('div');top.className='point-top';top.append(tag);
@@ -370,14 +434,15 @@ function renderLesson(record:any){
     }
     block.append(top,heading);
     if(point.term){
-      const reading=readingParagraph(point.reading??'',language);
-      const {button,status}=pronunciationControl(point.term,point.reading??'',language);reading.append(button);block.append(reading,status);
-    }else if(point.reading)block.append(readingParagraph(point.reading,language));
+      const reading=readingParagraph(point.reading??'',termLanguage);
+      const {button,status}=pronunciationControl(point.term,point.reading??'',termLanguage);reading.append(button);block.append(reading,status);
+    }
     block.append(explanationParagraph(point.meaning??point.explanation,explanationLanguage));
     for(const example of point.examples??[]){
       const item=document.createElement('div');item.className='example';const original=para('','example-original');
-      setLearningLanguage(original,language);
-      const {button,status}=pronunciationControl(example.text,'',language,true);appendExampleText(original,example.text,button);
+      const source=example.language==='en'||example.language==='ja'?example.language:language;
+      setLearningLanguage(original,source);
+      const {button,status}=pronunciationControl(example.text,'',source,true);appendExampleText(original,example.text,button);
       item.append(original,status,explanationParagraph(example.translation,explanationLanguage,'translation learning-text'));block.append(item);
     }
     container.append(block);
@@ -473,11 +538,23 @@ async function loadDraft(draft:any,force=false){
 }
 function queueSlot(job:QueueJob){
   let slot=selectionSlots.get(job.id);
-  if(!slot){const snapshot=emptyContent();snapshot.material={context:job.context,status:job.status,source:job.source,binding:job.binding??null};snapshot.fields.sourceText=job.text;snapshot.stage='recordSection';
-    const language=normalizeLanguage(job.params?.explanation_language);for(const id of languageSelects)snapshot.languages[id]={value:language};
-    slot={epoch:accountEpoch,snapshot};selectionSlots.set(job.id,slot);
+  if(!slot){slot={epoch:accountEpoch,snapshot:emptyContent(),queueJobId:job.id};selectionSlots.set(job.id,slot);}
+  // A manual grant can share an editor slot; its snapshots must not replace that editor before accepted.
+  if(slot.queueJobId===job.id&&!contentRecord(slot)){
+    const language=job.params?.explanation_language?normalizeLanguage(job.params.explanation_language):preferredLanguage;
+    const renderKey=JSON.stringify([job.owner,job.id,job.phase,job.text,job.context,job.status,job.source,job.binding??null,language,job.error??null,job.terminalStatus??null]);
+    if(slot.queueRenderKey===renderKey)return slot;
+    const snapshot=slot===activeContent?captureContent():slot.snapshot??emptyContent();snapshot.material={context:job.context,status:job.status,source:job.source,binding:job.binding??null};snapshot.fields.sourceText=job.text;snapshot.stage='recordSection';
+    for(const id of languageSelects)snapshot.languages[id]={value:language};
+    slot.snapshot=snapshot;if(slot===activeContent){applyContent(snapshot);renderQueuePlaceholder(job);}
+    slot.queueRenderKey=renderKey;
   }
   return slot;
+}
+function renderQueuePlaceholder(job:QueueJob){
+  stage('recordSection',false);bindUi('recordHeading',job.phase==='unknown'?'查询状态尚未确认，队列已暂停。':job.phase==='collecting'?'正在获取上下文…':job.phase==='ready'?'已加入队列，等待讲解…':'正在准备讲解…');
+  $('recordHeading').dataset.status=job.phase;show('recordError',false);$('recordError').textContent='';
+  $('recordOriginal').textContent=job.text;$('recordContext').textContent=job.context??'';link('recordSource',job.source);unbindUi($('recordMeta'));$('recordMeta').replaceChildren();show('imageState',false);
 }
 function renderQueue(){
   const snapshot=queueSnapshot,active=snapshot?.active,waiting=snapshot?.waiting??[],manual=snapshot?.manualDraft;
@@ -485,18 +562,39 @@ function renderQueue(){
   const state=manual?'请先完成登录或 Key 设置，再点击讲解。':active?.phase==='unknown'?'查询状态尚未确认，队列已暂停。':active?'正在讲解':waiting[0]?.phase==='collecting'?'正在获取上下文…':'等待查询';
   bindUi('queueStatus',state);bindUi('queueWaiting','等待 {count} 条',{count:waiting.length});show('queueWaiting',waiting.length>0);
   bindUi('queueCurrent',manual?'返回待讲解内容':'查看当前');
-  show('queueCurrent',!!active||!!snapshot?.last||!!manual);show('queueClear',waiting.length>0||!!manual);
+  show('queueCurrent',!!active||waiting.length>0||!!snapshot?.last||!!manual);show('queueClear',waiting.length>0||!!manual);
   show('queueCheck',active?.phase==='unknown');show('queueSkip',active?.phase==='unknown');show('queueCancel',active?.phase==='running');
   syncLanguageControls();
 }
 function receiveQueueSnapshot(snapshot:QueueSnapshot){
-  if(snapshot.owner!==(accountId??null))return;queueSnapshot=snapshot;renderQueue();
+  if(snapshot.owner!==(accountId??null))return;queueSnapshot=snapshot;
+  for(const skipped of snapshot.skippedRequests??[])skippedRecordRequests.add(JSON.stringify([skipped.recordId,skipped.requestId]));
+  if(snapshot.last?.terminalStatus==='skipped'){
+    skippedRecordRequests.add(JSON.stringify([snapshot.last.recordId,snapshot.last.requestId]));
+  }
+  while(skippedRecordRequests.size>256)skippedRecordRequests.delete(skippedRecordRequests.values().next().value!);
+  const stream=activeStream,active=snapshot.active;
+  if(stream&&(active?.id!==stream.jobId||active.recordId!==stream.recordId||active.requestId!==stream.requestId))stream.controller.abort();
+  renderQueue();
+  if(typeof snapshot.recordsVersion==='number'&&snapshot.recordsVersion>recordsVersion){recordsVersion=snapshot.recordsVersion;markHistoryDirty();}
+  for(const job of [...snapshot.waiting,snapshot.active,snapshot.last])if(job&&selectionSlots.has(job.id))queueSlot(job);
+  const presentation=presentationCursor.take(snapshot,selectionQueue.window);
+  if(presentation){preserveUnsubmittedContent();showQueueJob(presentation);notice();pendingPresentationAck={jobId:presentation.id,sequence:presentation.sequence};}
+  void acknowledgePresentation();
+  void recordNotices.flush();
   if(snapshot.manualDraft&&snapshot.manualDraft.nonce!==draftNonce)void loadDraft(snapshot.manualDraft).catch(failure);
-  queueMicrotask(()=>void pumpSelectionQueue().catch(failure));
+  queueMicrotask(()=>void recoverQueueActive().then(pumpSelectionQueue).catch(failure));
+}
+async function acknowledgePresentation(){
+  if(presentationAck||!pendingPresentationAck||!selectionQueue.ready)return;
+  const pending=pendingPresentationAck,epoch=accountEpoch;
+  const operation=selectionQueue.command('presented',pending).then(()=>{if(epoch===accountEpoch&&pendingPresentationAck===pending)pendingPresentationAck=null;}).catch(()=>{});
+  presentationAck=operation;await operation;
+  if(presentationAck===operation){presentationAck=null;if(pendingPresentationAck&&pendingPresentationAck!==pending)void acknowledgePresentation();}
 }
 function showQueueJob(job:QueueJob){
   const slot=queueSlot(job);switchContent(slot);showRoute('learn');queueDisplayJob=job.id;
-  if(!contentRecord(slot)){stage('recordSection',false);bindUi('recordHeading',job.phase==='unknown'?'查询状态尚未确认，队列已暂停。':'正在准备讲解…');}
+  if(!contentRecord(slot))renderQueuePlaceholder(job);
 }
 async function checkQueueKey(){
   if(!queueKeyCheck){const epoch=accountEpoch;queueKeyCheck=(async()=>{const key=await api('key.status');if(epoch!==accountEpoch)throw Error('SESSION_CHANGED');if(typeof key?.configured!=='boolean')throw Error('KEY_UNAVAILABLE');keyConfigured=key.configured;keyLastFour=key.last_four??'';renderKeyState();return key.configured;})().finally(()=>{queueKeyCheck=null;});}
@@ -516,30 +614,37 @@ async function pumpSelectionQueue(){
   try{
     if(!accountId){await selectionQueue.command('manual',{reason:'login'});return;}
     if(!languageReady)return;
-    if([workspaceSlot,historySlot].some(slot=>slot&&['saved','processing'].includes(contentRecord(slot)?.status)))return;
+    if([workspaceSlot,historySlot].some(slot=>{
+      const record=slot&&contentRecord(slot);
+      return record&&['saved','processing'].includes(record.status)&&!skippedRecordRequests.has(JSON.stringify([record.record_id,record.request_id]));
+    }))return;
     if(!await checkQueueKey()){await selectionQueue.command('manual',{reason:'key'});return;}
     if(epoch!==accountEpoch||activeStream||preparingLearning)return;
     const textIssue=learningTextIssue(head.text);
     if(textIssue){const reply=await selectionQueue.command('claim',{explanationLanguage:preferredLanguage});if(reply.job){progressed=true;await selectionQueue.command('finish',{jobId:reply.job.id,terminalStatus:'failed'});}notice(textIssue);return;}
-    const previous=queueSnapshot.last,reply=await selectionQueue.command('claim',{explanationLanguage:preferredLanguage});const job=reply.job;if(!job)return;progressed=true;
-    const following=previous&&queueDisplayJob===previous.id&&selectionSlots.get(previous.id)===activeContent;
-    const slot=queueSlot(job),canDisplay=navigation.route==='learn'&&(!!following||activeContent===workspaceSlot&&!current&&!field('sourceText').value.trim()&&!cropped);
-    if(canDisplay)showQueueJob(job);
+    const reply=await selectionQueue.command('claim',{explanationLanguage:preferredLanguage});const job=reply.job;if(!job)return;progressed=true;
+    const slot=queueSlot(job);
     await submitText({job,slot});
   }catch(error:any){if(!['SESSION_CHANGED','REQUEST_IN_PROGRESS','QUEUE_NOT_READY','QUEUE_WINDOW_BUSY'].includes(error?.message))failure(error);}
   finally{if(epoch===accountEpoch){queuePumping=false;syncLanguageControls();if(progressed&&queueSnapshot&&!queueSnapshot.active&&!queueSnapshot.paused&&queueSnapshot.waiting[0]?.phase==='ready')setTimeout(()=>void pumpSelectionQueue(),0);}}
 }
 async function recoverQueueActive(){
-  const job=queueSnapshot?.active;if(!job||queueRecovering||queuePumping||activeStream||!accountId||!selectionQueue.ready)return;
+  const job=queueSnapshot?.active;if(!job||queueRecovering||queuePumping||preparingLearning||activeStream||!accountId||!selectionQueue.ready)return;
+  if(job.phase==='running'&&job.executorId!==selectionQueue.clientId)return;
   queueRecovering=true;const epoch=accountEpoch;
+  const canRecover=()=>{
+    const active=queueSnapshot?.active;
+    return epoch===accountEpoch&&!preparingLearning&&!activeStream&&selectionQueue.ready&&active?.id===job.id&&active.recordId===job.recordId&&active.requestId===job.requestId&&!(active.phase==='running'&&active.executorId!==selectionQueue.clientId);
+  };
   try{
-    const result=await api('records.get',{record_id:job.recordId});if(epoch!==accountEpoch||queueSnapshot?.active?.id!==job.id)return;
-    const matching=result?.request_id===job.requestId;
-    if(matching){historyList.markDirty();syncHistoryRecord(result);await openRecord(result,false,queueSlot(job));}
-    if(matching&&['complete','failed','interrupted','cancelled','awaiting_review'].includes(result.status))await selectionQueue.command('recover',{jobId:job.id,terminalStatus:result.status});
+    const result=await api('records.get',{record_id:job.recordId});if(!canRecover())return;
+    const matching=result?.record_id===job.recordId&&result.request_id===job.requestId;
+    if(matching){recordChanged(result);syncHistoryRecord(result);await openRecord(result,false,queueSlot(job));}
+    if(!canRecover())return;
+    if(matching&&['complete','failed','interrupted','cancelled','awaiting_review'].includes(result.status))await selectionQueue.command('recover',{jobId:job.id,terminalStatus:result.status,revision:result.revision});
     else if(matching)await selectionQueue.command('recover',{jobId:job.id});
     else await selectionQueue.command('unknown',{jobId:job.id,error:'RESULT_UNKNOWN'});
-  }catch(error:any){if(epoch===accountEpoch&&queueSnapshot?.active?.id===job.id){try{await selectionQueue.command('unknown',{jobId:job.id,error:'RESULT_UNKNOWN'});}catch{}if(error?.message==='AUTH_EXPIRED')failure(error);}}
+  }catch(error:any){if(canRecover()){try{await selectionQueue.command('unknown',{jobId:job.id,error:'RESULT_UNKNOWN'});}catch{}if(error?.message==='AUTH_EXPIRED')failure(error);}}
   finally{if(epoch===accountEpoch){queueRecovering=false;if(!queueSnapshot?.active)void pumpSelectionQueue();}}
 }
 async function settleQueueCancellation(job:QueueJob,record:any,slot=queueSlot(job)){
@@ -549,8 +654,8 @@ async function settleQueueCancellation(job:QueueJob,record:any,slot=queueSlot(jo
     await selectionQueue.command('unknown',{jobId:job.id,error:'RESULT_UNKNOWN'});
     if(contentVisible(slot))notice('取消尚未确认；请连接网络后重新检查。');return false;
   }
-  historyList.markDirty();updateRecord(slot,record);
-  if(['complete','failed','interrupted','cancelled','awaiting_review'].includes(record.status))await selectionQueue.command('recover',{jobId:job.id,terminalStatus:record.status});
+  recordChanged(record);updateRecord(slot,record);
+  if(['complete','failed','interrupted','cancelled','awaiting_review'].includes(record.status))await selectionQueue.command('recover',{jobId:job.id,terminalStatus:record.status,revision:record.revision});
   else await selectionQueue.command('unknown',{jobId:job.id,error:'RESULT_UNKNOWN'});
   return true;
 }
@@ -561,12 +666,14 @@ async function cancelQueueActive(){
 action('queueCurrent',async()=>{
   const draft=queueSnapshot?.manualDraft;
   if(draft){const text=activeContent===workspaceSlot?field('sourceText').value:workspaceSlot.snapshot?.fields.sourceText;if(!text)await loadDraft(draft,true);switchContent(workspaceSlot);showRoute('learn');notice();return;}
-  const job=queueSnapshot?.active??queueSnapshot?.last;if(job){showQueueJob(job);if(!contentRecord(queueSlot(job)))await recoverQueueActive();}
+  const job=queueSnapshot?.active??queueSnapshot?.waiting[0]??queueSnapshot?.last;if(job){showQueueJob(job);if(!contentRecord(queueSlot(job)))await recoverQueueActive();}
 });
 action('queueClear',async()=>{await selectionQueue.command('clear');manualSelection=null;});
 action('queueCheck',recoverQueueActive);
-action('queueSkip',async()=>{const job=queueSnapshot?.active;if(!job)return;if(activeStream?.recordId===job.recordId)activeStream.controller.abort();historyList.markDirty();await selectionQueue.command('skip',{jobId:job.id});});
+action('queueSkip',async()=>{const job=queueSnapshot?.active;if(!job)return;if(activeStream?.recordId===job.recordId)activeStream.controller.abort();markHistoryDirty();await selectionQueue.command('skip',{jobId:job.id});});
 action('queueCancel',cancelQueueActive);
+action('restoreHeldContent',restoreHeldContent);
+action('queueReconnect',()=>wakeSelectionQueue());
 async function runLearning(action:string,params:any,requestId:string,assertTarget=()=>{},slot=activeContent,permission?:QueueJob){
   assertTarget();
   if(activeStream)throw Error('REQUEST_IN_PROGRESS');
@@ -578,11 +685,10 @@ async function runLearning(action:string,params:any,requestId:string,assertTarge
   try{assertTarget();}catch(error){await selectionQueue.command('finish',{jobId:grant.id,terminalStatus:'cancelled'}).catch(()=>{});throw error;}
   selectionSlots.set(grant.id,slot);manualSelection=null;
   const epoch=accountEpoch,controller=new AbortController();
-  const stream={recordId:params.record_id,requestId,controller};activeStream=stream;syncLanguageControls();
+  const stream={jobId:grant.id,recordId:params.record_id,requestId,controller};activeStream=stream;syncLanguageControls();
   const valid=()=>!controller.signal.aborted&&epoch===accountEpoch&&!deletedRecords.has(params.record_id)&&queueSnapshot?.active?.id===grant.id;
   let finalRecord:any=null;
-  let mutationSignature='';
-  const rememberMutation=(record:any)=>{if(!record)return;const signature=JSON.stringify([record.record_id,record.revision,record.status,record.corrected_text,record.recognized_text,record.result?.summary_zh]);if(signature!==mutationSignature){mutationSignature=signature;historyList.markDirty();}syncHistoryRecord(record);};
+  const rememberMutation=(record:any)=>{if(!record)return;recordChanged(record);syncHistoryRecord(record);};
   const inform=(message='')=>{if(contentVisible(slot))notice(message);};
   try{
     const record=await cloud.start(action,params,requestId,async event=>{
@@ -596,13 +702,13 @@ async function runLearning(action:string,params:any,requestId:string,assertTarge
   }catch(error){
     if(!valid())return;
     if(contentVisible(slot))failure(error); // Recover the same request by reading; never start a second model call.
-    try{const record=await api('records.get',{record_id:params.record_id});if(valid()&&record){finalRecord=record;rememberMutation(record);await openRecord(record,false,slot);if(record.status==='complete')inform();else if(record.status==='cancelled')inform('已取消，已发生的 API 费用不保证撤回。');else if(record.status==='interrupted')inform(errors.RESULT_UNKNOWN);}}
+    try{const record=await api('records.get',{record_id:params.record_id});if(valid()&&record?.record_id===params.record_id&&record.request_id===requestId){finalRecord=record;rememberMutation(record);await openRecord(record,false,slot);if(record.status==='complete')inform();else if(record.status==='cancelled')inform('已取消，已发生的 API 费用不保证撤回。');else if(record.status==='interrupted')inform(errors.RESULT_UNKNOWN);}}
     catch{ /* Keep the material and recovery ID while offline. */ }
   }finally{
     if(activeStream===stream)activeStream=null;
     if(epoch===accountEpoch&&queueSnapshot?.active?.id===grant.id){
       const terminal=finalRecord&&['complete','failed','interrupted','cancelled','awaiting_review'].includes(finalRecord.status);
-      await selectionQueue.command(terminal?'finish':'unknown',{jobId:grant.id,...(terminal?{terminalStatus:finalRecord.status}:{error:'RESULT_UNKNOWN'})}).catch(()=>{});
+      await selectionQueue.command(terminal?'finish':'unknown',{jobId:grant.id,...(terminal?{terminalStatus:finalRecord.status,revision:finalRecord.revision}:{error:'RESULT_UNKNOWN'})}).catch(()=>{});
     }
     syncLanguageControls();void pumpSelectionQueue();
   }
@@ -707,7 +813,7 @@ function renderHistory(){
         heading.id=`history-date-${groups.size}`;bindUi(heading,'{date}',()=>({date:historyDateLabel(item.local_date)}));group.setAttribute('aria-labelledby',heading.id);
         items=document.createElement('div');items.className='history-items';group.append(heading,items);groups.set(item.local_date,items);$('historyList').append(group);
       }
-      const row=document.createElement('div');row.className='history-row';
+      const row=document.createElement('div');row.className='history-row';row.dataset.recordId=item.record_id;
       const button=document.createElement('button');button.type='button';button.className='history-card';
       const title=document.createElement('span'),text=item.text||item.corrected_text||item.recognized_text||item.original_text;
       title.className='history-text';
@@ -733,17 +839,20 @@ function renderHistory(){
   show('more',result.has_more);if(!result.items.length)$('historyList').append(uiPara('还没有匹配的记录。','muted'));
 }
 async function history(reset=true){
+  if(reset)historyAnchor=null;
   const request=historyList.load(field('search').value,!reset,window.scrollY);$<HTMLButtonElement>('more').disabled=historyList.loading;
   try{if(!await request)return;renderHistory();if(navigation.route==='history')window.scrollTo({top:historyList.state.scroll});
-  }finally{$<HTMLButtonElement>('more').disabled=historyList.loading;}
+  }finally{$<HTMLButtonElement>('more').disabled=historyList.loading;if(historyList.needsRefresh)historyRefresh.schedule();}
 }
 function clearPendingRecord(id:string){
   const clear=(content:Pick<ContentSnapshot,'pendingSubmit'|'pendingImage'>)=>{if(content.pendingSubmit?.record_id===id)content.pendingSubmit=null;if(content.pendingImage?.recordId===id)content.pendingImage=null;};
   const visible={pendingSubmit,pendingImage};clear(visible);({pendingSubmit,pendingImage}=visible);
-  for(const slot of new Set([workspaceSlot,historySlot,...selectionSlots.values()]))if(slot?.snapshot)clear(slot.snapshot);
+  for(const slot of new Set([workspaceSlot,historySlot,heldContent?.slot,...selectionSlots.values()]))if(slot?.snapshot)clear(slot.snapshot);
 }
 async function forgetDeleted(id:string){
+  const deletedRecord=historyList.state.items.find(item=>item.record_id===id)??{record_id:id};recordChanged(deletedRecord,'deleted');
   deletedRecords.add(id);historyList.remove((item:any)=>item.record_id===id);clearPendingRecord(id);
+  if(heldContent?.slot.snapshot?.current?.record_id===id){heldContent=null;renderHeldContent();}
   const deletedJob=queueSnapshot?.active?.recordId===id?queueSnapshot.active:null;
   let resetWorkspace:ContentSlot|null=null;
   if(contentRecord(workspaceSlot)?.record_id===id){
@@ -786,7 +895,9 @@ async function restorePanel(){
 async function changeAccount(session:CloudSession|null){
   const next=session?.user.id??null;if(accountId===next)return;
   const old=accountId,wasSettings=navigation.route==='settings',guestDraft=old===null&&next&&manualSelection?.owner===null?manualSelection:null;accountId=next;++accountEpoch;++displayEpoch;++contextToken;
-  queueSnapshot=null;queuePumping=false;queueRecovering=false;queueKeyCheck=null;queueDisplayJob=null;selectionSlots.clear();manualSelection=null;show('selectionQueue',false);
+  queueSnapshot=null;queuePumping=false;queueRecovering=false;queueKeyCheck=null;queueDisplayJob=null;selectionSlots.clear();skippedRecordRequests.clear();manualSelection=null;show('selectionQueue',false);
+  heldContent=null;renderHeldContent();presentationCursor.reset();pendingPresentationAck=null;presentationAck=null;recordsVersion=0;queueWake=null;
+  historyRefresh.reset();historyAnchor=null;recordNotices.reset();
   ++languageVersion;++selectionVersion;savingLanguage=false;languageReady=false;preferredLanguage='zh';preparingLearning=null;setUiLanguage('zh');publishUiLanguage();
   for(const id of languageSelects){$<HTMLSelectElement>(id).value='zh';delete $<HTMLSelectElement>(id).dataset.confirmedLanguage;}
   ++fontVersion;savingFont=false;fontReady=false;confirmedFontTheme='refined';renderFont('refined');bindUi('fontState','更改后自动保存');
@@ -815,7 +926,26 @@ cloud.onAuthChange(session=>{void scheduleAccount(session).catch(failure);});
 chrome.storage.onChanged.addListener((changes,area)=>{
   if(area==='local'&&changes['lingo-session:'+cloudUrl])void cloud.getSession().then(scheduleAccount).catch(failure);
   if(area==='session'&&changes.draft?.newValue)void loadDraft(changes.draft.newValue).catch(failure);
+  if(area==='session'&&changes[SELECTION_QUEUE_KEY])void wakeSelectionQueue().catch(()=>{});
 });
+function renderQueueConnection(){
+  if(queueConnectionState==='ready'){
+    if(queueConnectionTimer!==null)clearTimeout(queueConnectionTimer);queueConnectionTimer=null;show('queueConnection',false);return;
+  }
+  bindUi('queueConnectionText',queueConnectionState==='connecting'?'正在连接查询队列…':queueConnectionState==='retrying'?'查询连接已断开，正在重连…':'查询连接已关闭，请重试连接。');
+  $<HTMLButtonElement>('queueReconnect').disabled=queueConnectionState==='connecting';
+  // Recover short-lived transports quietly; persistent failures remain visible and retryable.
+  if($('queueConnection').hidden&&queueConnectionTimer===null)queueConnectionTimer=setTimeout(()=>{
+    queueConnectionTimer=null;if(queueConnectionState!=='ready')show('queueConnection',true);
+  },1500);
+}
+async function wakeSelectionQueue(){
+  if(queueWake)return queueWake;
+  const epoch=accountEpoch,owner=accountId??null;
+  const operation=(async()=>{await selectionQueue.connect(owner);if(epoch!==accountEpoch)return;await acknowledgePresentation();await recoverQueueActive();if(epoch===accountEpoch)void pumpSelectionQueue();})();
+  queueWake=operation;
+  try{await operation;}finally{if(queueWake===operation)queueWake=null;}
+}
 function renderConnection(email:string|null,status:string){
   unbindUi($('connectionState'));
   $('connectionState').replaceChildren(...(email?[para(email,'account-email'),uiPara(status,'connection-status muted')]:[uiPara('登录后，笔记将保存在你的私有云端。','connection-status muted')]));
@@ -837,7 +967,7 @@ async function diagnose():Promise<boolean|null>{
   const valid=()=>epoch===accountEpoch&&stamp===diagnosisVersion&&keyStamp===keyMutationVersion;
   renderConnection(session.user.email??'Lingo Notes','正在检查云端连接…');
   try{
-    if(!selectionQueue.ready)await selectionQueue.connect(accountId??null);
+    await wakeSelectionQueue();
     const [,key,settings]=await Promise.all([api('ping'),api('key.status'),api('settings.get'),refreshFontTheme(),refreshExplanationLanguage()]);
     if(!valid())return null;
     if(typeof key?.configured!=='boolean')throw Error('KEY_UNAVAILABLE');
@@ -928,11 +1058,12 @@ setInterval(async()=>{
   try{for(const slot of new Set([workspaceSlot,historySlot,...selectionSlots.values()])){
     if(!slot||!retainedContent(slot))continue;const previous=contentRecord(slot);if(!previous||!['saved','processing'].includes(previous.status))continue;
     const id=previous.record_id,record=await api('records.get',{record_id:id});if(epoch!==accountEpoch)return;if(!retainedContent(slot)||contentRecord(slot)?.record_id!==id)continue;
-    if(!record){await forgetDeleted(id);continue;}updateRecord(slot,record);if(contentVisible(slot)){if(record.status==='complete')notice();else if(record.status==='interrupted')notice(errors.RESULT_UNKNOWN);}
+    if(!record){await forgetDeleted(id);continue;}recordChanged(record);updateRecord(slot,record);if(contentVisible(slot)){if(record.status==='complete')notice();else if(record.status==='interrupted')notice(errors.RESULT_UNKNOWN);}
   }}catch(e){failure(e);}finally{polling=false;await recoverQueueActive();void pumpSelectionQueue();}
 },3000);
-window.addEventListener('pagehide',()=>{field('password').value='';speech?.stop();activeStream?.controller.abort();selectionQueue.close();});
-const refreshPreferences=()=>{if(document.visibilityState!=='hidden')void cloud.getSession().then(scheduleAccount).then(()=>Promise.all([selectionQueue.ready?Promise.resolve():selectionQueue.connect(accountId??null),refreshFontTheme(),refreshExplanationLanguage(),refreshReviewLimit(),reviewMount?loadReviewPoints(reviewMount):Promise.resolve()])).catch(failure);};
+window.addEventListener('pagehide',event=>{field('password').value='';speech?.stop();activeStream?.controller.abort();if(!event.persisted)selectionQueue.close();});
+const refreshPreferences=()=>{if(document.visibilityState!=='hidden')void cloud.getSession().then(scheduleAccount).then(()=>Promise.all([wakeSelectionQueue(),refreshFontTheme(),refreshExplanationLanguage(),refreshReviewLimit(),reviewMount?loadReviewPoints(reviewMount):Promise.resolve()])).catch(failure);};
 window.addEventListener('focus',refreshPreferences);document.addEventListener('visibilitychange',refreshPreferences);
+window.addEventListener('pageshow',event=>{if(event.persisted)refreshPreferences();});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){speech?.stop();void call({kind:'capture.cancel'}).catch(()=>{});}});
 void(async()=>{try{await scheduleAccount(await cloud.getSession());}catch(e){failure(e);}})();

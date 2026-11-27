@@ -42,10 +42,10 @@ test('error presentation never echoes an unknown backend response or credential'
   assert.match(userError({ code: 'AUTH_EXPIRED' }), /登录已过期/);
 });
 
-async function worker({ origin = 'https://notes.example', transport = async () => new Response('<html>public shell</html>'), cachedResponse = new Response('public shell') } = {}) {
+async function worker({ origin = 'https://notes.example', transport = async () => new Response('<html>/assets/app.js /assets/app.css</html>'), cachedResponse, clients = [] } = {}) {
   const source = (await readFile(new URL('../pwa/service-worker.js', import.meta.url), 'utf8')).replace('__CACHE_VERSION__', 'test').replace('/*__BUILD_ASSETS__*/', '"/assets/app.js","/assets/app.css"').replace('/*__BUILD_FONTS__*/', '"/assets/public-font.woff2"');
   const listeners = new Map(); const notifications = []; const fetched = []; const cached = []; const opened = [];
-  const stored = new Map();
+  const stored = new Map(cachedResponse ? [['/',cachedResponse]] : []);
   const cache = {
     async addAll(paths) { cached.push(...paths); },
     async put(path, response) { cached.push(path); stored.set(path, response.clone()); },
@@ -55,10 +55,10 @@ async function worker({ origin = 'https://notes.example', transport = async () =
     location: { origin },
     addEventListener(type, handler) { listeners.set(type, handler); },
     async skipWaiting() {},
-    clients: { async claim() {}, async matchAll() { return []; }, async openWindow(url) { opened.push(url); } },
+    clients: { async claim() {}, async matchAll() { return clients; }, async openWindow(url) { opened.push(url); } },
     registration: { async showNotification(title, options) { notifications.push({ title, options }); } },
   };
-  vm.runInNewContext(source, { self, URL, Response, Set, Promise, caches: { async open() { return cache; }, async keys() { return []; }, async match() { return cachedResponse?.clone(); }, async delete() {} }, async fetch(url, options) { fetched.push(url); return transport(url, options); } });
+  vm.runInNewContext(source, { self, URL, Response, Set, Promise, MessageChannel, setTimeout, clearTimeout, caches: { async open() { return cache; }, async keys() { return []; }, async delete() {} }, async fetch(url, options) { fetched.push(url); return transport(url, options); } });
   async function dispatch(type, data = {}) {
     const promises = []; let responded = false, responsePromise;
     const event = { ...data, waitUntil(promise) { promises.push(promise); }, respondWith(promise) { responded = true; responsePromise = Promise.resolve(promise); promises.push(responsePromise); } };
@@ -85,7 +85,7 @@ test('service worker caches only the public build shell; never API or signed ima
   }
   const result = await sw.dispatch('fetch', { request: { url: 'https://notes.example/?batch=private-batch', method: 'GET', mode: 'navigate' } });
   assert.equal(result.responded, true);
-  assert.deepEqual(sw.fetched, ['/']);
+  assert.deepEqual(sw.fetched, ['/'], 'only installation requests HTML; warm navigation reads the installed cache');
   assert.equal(sw.cached.some(path => path.includes('private')), false);
 });
 
@@ -117,7 +117,7 @@ test('canonical navigation avoids a real index.html redirect and never returns r
   }
   assert.deepEqual(requests, ['/', '/']);
   assert.ok(optionsSeen.every(options => options.redirect === 'error' && options.credentials === 'omit'));
-  assert.equal(sw.cached.some(path => path !== '/'), false);
+  assert.deepEqual(sw.cached, [], 'a fallback response must not mix versions in the installed cache');
   redirectRoot = true;
   const rejected = await sw.dispatch('fetch', { request: { url: `${origin}/`, method: 'GET', mode: 'navigate' } });
   assert.equal(rejected.response.type, 'error', 'a network redirect must not fall back to an old redirected response');
@@ -128,7 +128,8 @@ test('canonical navigation avoids a real index.html redirect and never returns r
 test('public fonts are cached on demand and failures or private font URLs are not cached', async () => {
   let networkCalls = 0;
   let available = false;
-  const sw = await worker({ transport: async (_request, options) => {
+  const sw = await worker({ transport: async (request, options) => {
+    if(request === '/')return new Response('<html>/assets/app.js /assets/app.css</html>');
     networkCalls++;
     assert.equal(options.credentials, 'omit');
     assert.equal(options.redirect, 'error');
@@ -167,4 +168,24 @@ test('service worker ignores push plaintext and binds notification tag to batch'
   assert.deepEqual(sw.opened, ['https://notes.example/']);
   await sw.dispatch('notificationclick', { notification: { close() {}, data: { path: '/?batch=batch_123' } } });
   assert.equal(sw.opened.at(-1), 'https://notes.example/?batch=batch_123');
+});
+
+test('test notifications are distinct and a batch opens in the existing PWA without a reload', async () => {
+  const delivered=[];
+  let focused=0;
+  const client={
+    url:'https://notes.example/?tab=history',
+    postMessage(message, [port]) { delivered.push(message); port.postMessage('LINGO_REVIEW_OPENED'); port.close(); },
+    async focus() { focused++; },
+    async navigate() { assert.fail('confirmed in-app navigation must not reload the document'); }
+  };
+  const sw=await worker({clients:[client]});
+  await sw.dispatch('push',{data:{json:()=>({kind:'test',batch_id:null})}});
+  assert.equal(sw.notifications[0].options.tag,'lingo-test');
+  assert.match(sw.notifications[0].options.body,/通知测试/);
+  await sw.dispatch('notificationclick',{notification:{close(){},data:{path:'/?batch=batch_123'}}});
+  assert.equal(delivered[0].type,'LINGO_OPEN_REVIEW');
+  assert.equal(delivered[0].batch,'batch_123');
+  assert.equal(focused,1);
+  assert.deepEqual(sw.opened,[]);
 });

@@ -202,8 +202,8 @@ test('settings and review APIs validate inputs and derive every owner from the a
     assert.deepEqual(await callApi('settings.update',{review_daily_limit}),{ok:false,error:'INVALID_SETTINGS'});
   }
   assert.equal((await callApi('settings.get',{},'session-b')).result.review_daily_limit,5);
-  assert.equal((await callApi('ping')).result.protocol,'cloud/5');
-  assert.equal((await callApi('ping')).result.protocol_version,'lingo-cloud/5');
+  assert.equal((await callApi('ping')).result.protocol,'cloud/6');
+  assert.equal((await callApi('ping')).result.protocol_version,'lingo-cloud/6');
   assert.deepEqual(await callApi('settings.get',{},'expired'),{ok:false,error:'SESSION_EXPIRED'});
   const saved=await reviewSeed(a),foreign=await reviewSeed(b),batch=await call('lingo_make_batch',[a,'2026-11-02T03:00:00Z']);
   // settings above left a disabled; enable only the synthetic owner before creating its batch.

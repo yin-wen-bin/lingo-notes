@@ -2,6 +2,8 @@
 
 This is a new dataset. It has no SQLite, Native Messaging, Pages or WorkBuddy runtime dependency.
 
+For an independent Supabase and Cloudflare installation, follow the [self-host guide](../docs/self-host.md). The manual steps below describe maintenance of the official instance.
+
 ## Deployment order
 
 1. Apply the numbered `migrations/*.sql` in order to the designated project.

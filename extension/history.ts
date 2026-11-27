@@ -1,6 +1,36 @@
 type Page<T>={items:T[],has_more:boolean};
 type Snapshot<T>=Page<T>&{query:string,scroll:number};
 
+/** Merge nearby mutations and follow a mutation received during an outstanding read. */
+export class HistoryRefreshScheduler {
+  private timer:ReturnType<typeof setTimeout>|null=null;
+  private running:Promise<void>|null=null;
+  private queued=false;
+  private generation=0;
+  private refresh:()=>Promise<boolean>;
+  private visible:()=>boolean;
+  private delay:number;
+  constructor(refresh:()=>Promise<boolean>,visible:()=>boolean,delay=200){this.refresh=refresh;this.visible=visible;this.delay=delay;}
+  schedule(){
+    if(!this.visible())return;
+    this.queued=true;
+    if(!this.running&&!this.timer)this.timer=setTimeout(()=>{this.timer=null;void this.flush().catch(()=>{});},this.delay);
+  }
+  async flush(){
+    if(!this.visible())return;
+    if(this.running){this.queued=true;await this.running;return;}
+    if(this.timer){clearTimeout(this.timer);this.timer=null;}
+    this.queued=false;const generation=this.generation;
+    const running=(async()=>{
+      let again=false;
+      try{again=await this.refresh();}
+      finally{if(generation===this.generation){this.running=null;if(again||this.queued)this.schedule();}}
+    })();
+    this.running=running;await running;
+  }
+  reset(){++this.generation;if(this.timer)clearTimeout(this.timer);this.timer=null;this.running=null;this.queued=false;}
+}
+
 // Keep the unfiltered view and ignore replies from superseded searches.
 export class HistoryList<T>{
   state:Snapshot<T>={items:[],has_more:false,query:'',scroll:0};

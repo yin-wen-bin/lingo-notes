@@ -1,6 +1,7 @@
 import type { FontTheme } from '../../shared/typography/theme';
 
-export type Example = { text: string; translation: string };
+export type { Example } from '../../shared/cloud-types';
+import type { Example } from '../../shared/cloud-types';
 export type ExplanationLanguage = 'zh' | 'ja' | 'en';
 export type Lesson = {
   language: string; explanation_language?: ExplanationLanguage; summary_zh: string;
@@ -11,7 +12,8 @@ export type RecordItem = { record_id: string; revision: number; local_date: stri
 export type LearningRecord = RecordItem & {
   original_text?: string; corrected_text?: string; context?: string;
   source?: { title?: string; url?: string } | null;
-  image?: { path: string; mime_type: string; width?: number; height?: number } | null;
+  recognized_text?: string;
+  image?: { mime_type?: string; width?: number; height?: number } | null;
   result?: Lesson | null;
 };
 export type ReviewState = { point_key: string; mastered: boolean; mastered_at?: string | null; review_round: number; next_due_date: string | null; completed: boolean; last_completed_at?: string | null; reviewed?: boolean; completed_at?: string | null };

@@ -3,17 +3,28 @@ export type QueueOwner=string|null;
 export type QueueMaterial={text:string;context:string;status:string;source:any;binding?:any};
 export type QueueJob=QueueMaterial&{id:string;owner:QueueOwner;sequence:number;windowId:number;createdAt:number;phase:'collecting'|'ready'|'running'|'unknown';action:string;requestId:string;recordId:string;params?:Record<string,any>;executorId?:string;error?:string;terminalStatus?:string};
 export type ManualSelection=QueueMaterial&{nonce:string;owner:QueueOwner;windowId:number;manual:true;reason:'login'|'key'};
-export type QueueSnapshot={owner:QueueOwner;version:number;waiting:QueueJob[];active:QueueJob|null;last:QueueJob|null;manualDraft:ManualSelection|null;paused:'setup'|null};
-export type QueueIdentity={clientId:string;windowId:number;owner:QueueOwner};
-export type QueueCommand=QueueIdentity&{kind:'selection-queue';op:'sync'|'claim'|'acquire'|'finish'|'unknown'|'clear'|'skip'|'manual'|'recover';jobId?:string;explanationLanguage?:'zh'|'ja'|'en';action?:string;params?:Record<string,any>;requestId?:string;recordId?:string;terminalStatus?:string;error?:string;reason?:'login'|'key'};
+export type SkippedRequest={recordId:string;requestId:string};
+export type QueueSnapshot={owner:QueueOwner;version:number;waiting:QueueJob[];active:QueueJob|null;last:QueueJob|null;manualDraft:ManualSelection|null;paused:'setup'|null;presentations?:Record<string,QueueJob>;presented?:Record<string,number>;recordsVersion?:number;skippedRequests?:SkippedRequest[]};
+export type QueueIdentity={clientId:string;windowId:number;owner:QueueOwner;transportId?:string};
+export type QueueCommand=QueueIdentity&{kind:'selection-queue';op:'sync'|'claim'|'acquire'|'finish'|'unknown'|'clear'|'skip'|'manual'|'recover'|'presented'|'record-changed';jobId?:string;sequence?:number;explanationLanguage?:'zh'|'ja'|'en';action?:string;params?:Record<string,any>;requestId?:string;recordId?:string;revision?:number;status?:string;terminalStatus?:string;error?:string;reason?:'login'|'key'};
 export type QueueReply={snapshot:QueueSnapshot;job?:QueueJob|null;draft?:ManualSelection|null};
 export type QueueRegistration=QueueIdentity&{kind:'selection-queue.register'};
 
 type Area={get(key:string):Promise<Record<string,any>>;set(value:Record<string,any>):Promise<void>};
-type Stored=QueueSnapshot&{nextSequence:number};
+type Stored=QueueSnapshot&{nextSequence:number;presentations:Record<string,QueueJob>;presented:Record<string,number>;recordsVersion:number;recordSignatures:string[];skippedRequests:SkippedRequest[]};
 const terminal=new Set(['complete','failed','interrupted','cancelled','awaiting_review']);
+const recordStatuses=new Set([...terminal,'processing','saved','deleted']);
 const clone=<T>(value:T):T=>JSON.parse(JSON.stringify(value));
-const empty=(owner:QueueOwner):Stored=>({owner,version:0,nextSequence:1,waiting:[],active:null,last:null,manualDraft:null,paused:null});
+const empty=(owner:QueueOwner):Stored=>({owner,version:0,nextSequence:1,waiting:[],active:null,last:null,manualDraft:null,paused:null,presentations:{},presented:{},recordsVersion:0,recordSignatures:[],skippedRequests:[]});
+function normalizeSkippedRequests(value:unknown):SkippedRequest[]{
+  const pairs=new Map<string,SkippedRequest>();
+  if(Array.isArray(value))for(const pair of value){
+    if(!pair||typeof pair.recordId!=='string'||!pair.recordId||pair.recordId.length>256||typeof pair.requestId!=='string'||!pair.requestId||pair.requestId.length>256)continue;
+    const key=JSON.stringify([pair.recordId,pair.requestId]);pairs.delete(key);pairs.set(key,{recordId:pair.recordId,requestId:pair.requestId});
+    if(pairs.size>256)pairs.delete(pairs.keys().next().value!);
+  }
+  return [...pairs.values()];
+}
 
 /** A single background writer owns all model permits in this browser session.
  * A claimed permit is never returned as executable again, even after a restart. */
@@ -38,6 +49,15 @@ export class SelectionQueue {
       if(!this.state){
         const saved=(await this.area.get(SELECTION_QUEUE_KEY))[SELECTION_QUEUE_KEY];
         this.state=saved&&Array.isArray(saved.waiting)&&Number.isInteger(saved.nextSequence)?clone(saved):empty(owner);
+        // Existing session data must not turn old selections into new navigation intentions.
+        const state=this.state!;
+        if(!state.presentations||typeof state.presentations!=='object'||Array.isArray(state.presentations)){state.presentations={};this.recoveryDirty=true;}
+        if(!state.presented||typeof state.presented!=='object'||Array.isArray(state.presented)){state.presented={};this.recoveryDirty=true;}
+        if(!Number.isSafeInteger(state.recordsVersion)||state.recordsVersion<0){state.recordsVersion=0;this.recoveryDirty=true;}
+        if(!Array.isArray(state.recordSignatures)){state.recordSignatures=[];this.recoveryDirty=true;}
+        state.recordSignatures=state.recordSignatures.filter(value=>typeof value==='string').slice(-256);
+        const skippedRequests=normalizeSkippedRequests(state.skippedRequests);
+        if(JSON.stringify(state.skippedRequests)!==JSON.stringify(skippedRequests)){state.skippedRequests=skippedRequests;this.recoveryDirty=true;}
         // The previous executor may already have POSTed. Recovery is always GET-only.
         if(this.state!.active){this.state!.active.phase='unknown';this.state!.active.error='EXECUTOR_DISCONNECTED';delete this.state!.active.executorId;this.recoveryDirty=true;}
         for(const job of this.state!.waiting)if(job.phase==='collecting'){job.phase='ready';job.status='unavailable';job.context='';this.recoveryDirty=true;}
@@ -49,6 +69,11 @@ export class SelectionQueue {
         const replacement=empty(owner);replacement.version=state.version+1;replacement.manualDraft=manual;replacement.paused=manual?'setup':null;Object.assign(state,replacement);
       }
       const value=mutate(state);
+      // Retain the latest known state even after a later job evicts it from `last`.
+      for(const [windowId,presentation] of Object.entries(state.presentations)){
+        const current=[...state.waiting,state.active,state.last].find(job=>job?.id===presentation.id);
+        if(current)state.presentations[windowId]=clone(current);
+      }
       if(JSON.stringify(state)!==before||this.recoveryDirty){state.version++;await this.area.set({[SELECTION_QUEUE_KEY]:state});this.state=state;this.recoveryDirty=false;this.publish(this.snapshot(state));}
       if(value&&typeof value==='object'&&'snapshot' in value)(value as QueueReply).snapshot=this.snapshot(state);
       else if(value&&typeof value==='object'&&'waiting' in value&&'version' in value)Object.assign(value,this.snapshot(state));
@@ -57,25 +82,39 @@ export class SelectionQueue {
     this.pending=run;return run;
   }
   private snapshot(state:Stored):QueueSnapshot{
-    const {nextSequence:_,...snapshot}=state,result=clone(snapshot);
+    const {nextSequence:_,recordSignatures:__,...snapshot}=state,result=clone(snapshot);
+    for(const [windowId,presentation] of Object.entries(result.presentations)){
+      const current=[...state.waiting,state.active,state.last].find(job=>job?.id===presentation.id);
+      if(current)result.presentations[windowId]=clone(current);
+    }
     // Image bytes are needed only in the persisted active permit, never in broadcasts/history.
-    for(const job of [result.active,result.last])if(job?.params)delete job.params.image;
+    for(const job of [...result.waiting,result.active,result.last,...Object.values(result.presentations)])if(job?.params)delete job.params.image;
     return result;
   }
   private authorized(identity:QueueIdentity){
     const registered=this.clients.get(identity.clientId);
-    if(!registered||registered.owner!==identity.owner||registered.windowId!==identity.windowId)throw Error('UNTRUSTED_SENDER');
+    if(!registered||registered.owner!==identity.owner||registered.windowId!==identity.windowId||registered.transportId!==identity.transportId)throw Error('UNTRUSTED_SENDER');
   }
   private eligible(job:QueueJob,identity:QueueIdentity){
     const originPresent=[...this.clients.values()].some(client=>client.owner===identity.owner&&client.windowId===job.windowId);
     return !originPresent||job.windowId===identity.windowId;
+  }
+  private recordChanged(state:Stored,recordId:string,revision:number,status:string){
+    if(!recordId||recordId.length>256||!Number.isSafeInteger(revision)||revision<1||!recordStatuses.has(status))throw Error('INVALID_QUEUE_REQUEST');
+    const signature=JSON.stringify([recordId,revision,status]);
+    if(state.recordSignatures.includes(signature))return;
+    state.recordSignatures.push(signature);if(state.recordSignatures.length>256)state.recordSignatures.shift();state.recordsVersion++;
+  }
+  private terminalChanged(state:Stored,job:QueueJob,message:QueueCommand){
+    const revision=message.revision??(Number.isSafeInteger(job.params?.revision)?job.params!.revision+1:1);
+    this.recordChanged(state,job.recordId,revision,job.terminalStatus!);
   }
   async syncOwner(owner:QueueOwner){return this.transaction(owner,state=>this.snapshot(state));}
   async enqueue(owner:QueueOwner,windowId:number,material:QueueMaterial,nonce=this.id()){
     return this.transaction(owner,state=>{
       const known=[...state.waiting,state.active,state.last].find(job=>job?.id===nonce);if(known)return known;
       const job:QueueJob={...material,id:nonce,owner,sequence:state.nextSequence++,windowId,createdAt:this.now(),phase:'collecting',action:'learning.submit',requestId:this.id(),recordId:this.id()};
-      state.waiting.push(job);return job;
+      state.waiting.push(job);state.presentations[String(windowId)]=clone(job);return job;
     });
   }
   async contextReady(owner:QueueOwner,jobId:string,material:Partial<QueueMaterial>){
@@ -97,12 +136,23 @@ export class SelectionQueue {
   async command(message:QueueCommand):Promise<QueueReply>{
     this.authorized(message);
     return this.transaction(message.owner,state=>{
+      this.authorized(message); // Registration can change while this transaction waits for storage.
       let job:QueueJob|null|undefined,draft:ManualSelection|null|undefined;
       const active=()=>{if(!state.active||state.active.id!==message.jobId)throw Error('QUEUE_TASK_CHANGED');return state.active;};
       switch(message.op){
         case 'sync':
           if(state.manualDraft&&![...this.clients.values()].some(client=>client.owner===message.owner&&client.windowId===state.manualDraft!.windowId))state.manualDraft.windowId=message.windowId;
           break;
+        case 'presented':{
+          const key=String(message.windowId),latest=state.presentations[key],sequence=message.sequence;
+          if(!latest||typeof sequence!=='number'||!Number.isSafeInteger(sequence)||sequence<1||sequence>latest.sequence)throw Error('QUEUE_TASK_CHANGED');
+          if(sequence<=(state.presented[key]??0))break;
+          const known=[latest,...state.waiting,state.active,state.last].find(job=>job&&job.id===message.jobId&&job.sequence===sequence&&job.windowId===message.windowId);
+          // An old intention can be acknowledged after a newer click; evicted old jobs need no acknowledgement.
+          if(known)state.presented[key]=sequence;
+          break;
+        }
+        case 'record-changed':this.recordChanged(state,message.recordId??'',message.revision??0,message.status??'');break;
         case 'claim':{
           const next=state.waiting[0];
           if(!message.owner||state.active||state.paused||!next||next.phase!=='ready'||!this.eligible(next,message)){job=null;break;}
@@ -121,7 +171,7 @@ export class SelectionQueue {
         case 'finish':{
           const current=active();if(current.executorId!==message.clientId)throw Error('UNTRUSTED_SENDER');
           if(!terminal.has(message.terminalStatus??''))throw Error('QUEUE_RESULT_UNKNOWN');
-          current.terminalStatus=message.terminalStatus;if(current.params)delete current.params.image;state.last=current;state.active=null;break;
+          current.terminalStatus=message.terminalStatus;this.terminalChanged(state,current,message);if(current.params)delete current.params.image;state.last=current;state.active=null;break;
         }
         case 'unknown':{
           const current=active();if(current.executorId!==message.clientId)throw Error('UNTRUSTED_SENDER');
@@ -129,13 +179,19 @@ export class SelectionQueue {
         }
         case 'recover':{
           const current=active();
-          if(message.terminalStatus){if(!terminal.has(message.terminalStatus))throw Error('QUEUE_RESULT_UNKNOWN');current.terminalStatus=message.terminalStatus;if(current.params)delete current.params.image;state.last=current;state.active=null;}
+          if(message.terminalStatus){if(!terminal.has(message.terminalStatus))throw Error('QUEUE_RESULT_UNKNOWN');current.terminalStatus=message.terminalStatus;this.terminalChanged(state,current,message);if(current.params)delete current.params.image;state.last=current;state.active=null;}
           else if(current.phase==='unknown'){current.executorId=message.clientId;job=null;}
           break;
         }
-        case 'clear':state.waiting=[];state.paused=null;state.manualDraft=null;break;
+        case 'clear':{
+          const removed=new Set(state.waiting.map(job=>job.id));
+          if(state.manualDraft)removed.add(state.manualDraft.nonce);
+          for(const [key,presentation] of Object.entries(state.presentations))if(removed.has(presentation.id))state.presented[key]=Math.max(state.presented[key]??0,presentation.sequence);
+          state.waiting=[];state.paused=null;state.manualDraft=null;break;
+        }
         case 'skip':{
           const current=active();if(current.phase!=='unknown')throw Error('REQUEST_IN_PROGRESS');
+          state.skippedRequests=normalizeSkippedRequests([...state.skippedRequests,{recordId:current.recordId,requestId:current.requestId}]);
           current.terminalStatus='skipped';if(current.params)delete current.params.image;state.last=current;state.active=null;break;
         }
         case 'manual':{

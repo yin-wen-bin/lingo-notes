@@ -78,7 +78,7 @@ test('PWA review controls persist counts, complete explicitly, exclude mastered 
       case 'settings.get': result = { ...account.settings }; if (nextReadback !== null) { result.review_daily_limit = nextReadback; nextReadback = null; } break;
       case 'settings.update': Object.assign(account.settings, body.params); result = { ...account.settings }; break;
       case 'key.status': result = { configured: false }; break;
-      case 'review.today': case 'review.get': result = { batch: { id: 'batch-one', local_date: '2026-11-21', cards: account.cards.filter(card => !card.mastered) } }; break;
+      case 'review.today': case 'review.get': result = { batch: { id: 'batch-one', local_date: new Date(Date.now() + 8 * 3600000).toISOString().slice(0,10), cards: account.cards.filter(card => !card.mastered) } }; break;
       case 'review.opened': result = { opened: true }; break;
       case 'review.cards': result = { cards: account.cards.filter(card => card.record_id === body.params.record_id).map(card => ({ ...card, ...pointOverrides[card.id] })) }; break;
       case 'records.get': result = { record_id: 'record-one', revision: 1, local_date: '2026-11-20', original_text: 'learn', status: 'completed', result: { language: 'en', explanation_language: 'zh', summary_zh: '描述日常学习的习惯。', vocabulary: [{ term: 'learn', reading: '/lɜːn/', pos: '动词', meaning: '学习；学会', examples }], grammar: [{ point: '描述习惯', explanation: '描述经常发生的事情。', examples }] } }; break;
@@ -134,8 +134,11 @@ test('PWA review controls persist counts, complete explicitly, exclude mastered 
   // Never attach the replacement point's mutation controls to the previously fetched lesson.
   async function reloadNotePoints() {
     await gotoToday(); await expect(page.locator('.review-card')).toHaveCount(7);
-    const response = page.waitForResponse(item => item.url().startsWith(apiOrigin) && item.request().postDataJSON()?.action === 'review.cards');
     await card('learn').getByRole('button', { name: '回看完整讲解', exact: true }).click();
+    await expect(page.getByRole('heading',{name:'learn',exact:true}).first()).toBeVisible();
+    await page.waitForTimeout(510);
+    const response = page.waitForResponse(item => item.url().startsWith(apiOrigin) && item.request().postDataJSON()?.action === 'review.cards');
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await response; await expect(page.getByText('正在读取复习状态…', { exact: true })).toHaveCount(0);
   }
   pointOverrides = { 'card-1': { pos: '名词' } };
@@ -151,6 +154,7 @@ test('PWA review controls persist counts, complete explicitly, exclude mastered 
   await expect(page.getByRole('button', { name: '撤销已记住：learn', exact: true })).toBeVisible();
   await gotoToday(); await expect(page.locator('.review-card')).toHaveCount(6);
   accounts.get('reader-a').cards[3].mastered = true;
+  await page.waitForTimeout(510);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(page.locator('.review-card')).toHaveCount(5);
   assert.equal(calls.filter(call => call.action === 'review.complete').length, 1, 'foreground refresh is read-only');

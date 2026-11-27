@@ -10,7 +10,7 @@ export function mergeReviewState(card: ReviewCard, state: ReviewState): ReviewCa
     ...(reviewed === undefined ? {} : { reviewed }), ...(completed_at === undefined ? {} : { completed_at }) };
 }
 
-export function useReviewActions(scope: string, onError: (error: unknown) => void) {
+export function useReviewActions(scope: string, onError: (error: unknown) => void, onSaved: (state: ReviewState, batch?: string) => void) {
   const alive = useRef(true), activeScope = useRef(scope), locked = useRef(false), generation = useRef(0);
   const [pending, setPending] = useState<string | null>(null);
   activeScope.current = scope;
@@ -27,11 +27,11 @@ export function useReviewActions(scope: string, onError: (error: unknown) => voi
         card_id: card.id, point_key: card.point_key,
         ...(action === 'review.complete' ? { batch_id: batchId } : { mastered })
       });
-      if (!valid()) return null;
       const state = result?.card;
       if (state?.point_key !== card.point_key || typeof state.mastered !== 'boolean' || !Number.isInteger(state.review_round) || state.review_round < 0 || state.review_round > 5 || typeof state.completed !== 'boolean'
         || (action === 'review.mastery' && state.mastered !== mastered) || (action === 'review.complete' && (!result.reviewed || !state.reviewed))) throw new Error('REVIEW_STATE_UNCONFIRMED');
-      return state;
+      onSaved(state, action === 'review.complete' ? batchId : undefined);
+      return valid() ? state : null;
     } catch (error) { if (valid()) onError(error); return null; }
     finally { if (valid()) { locked.current = false; setPending(null); } }
   }

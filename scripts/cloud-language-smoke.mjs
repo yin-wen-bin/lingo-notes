@@ -49,7 +49,7 @@ export async function runLanguageSmoke(options,{progress=()=>{}}={}){
     requireThat(signed.user?.id===qaId&&signed.session,'QA_SESSION_MISMATCH');
     let memory=JSON.stringify(signed.session);
     cloud=createCloudClient({url,publishableKey,storage:{getItem:()=>memory,setItem:(_k,v)=>{memory=v;},removeItem:()=>{memory=null;}}});
-    requireThat((await cloud.call('ping')).protocol==='cloud/5','CLOUD5_REQUIRED');
+    requireThat((await cloud.call('ping')).protocol==='cloud/6','CLOUD6_REQUIRED');
     requireThat((await cloud.call('settings.get')).explanation_language==='zh','DEFAULT_LANGUAGE_NOT_ZH');
     await cloud.call('key.save',{key});key='';
     await cloud.call('settings.update',{explanation_mode:'fast',review_enabled:false,push_enabled:false});

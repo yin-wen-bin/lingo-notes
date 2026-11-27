@@ -32,7 +32,7 @@ export function partialLesson(raw) {
   try{
     const p=value().value;if(!p||typeof p!=='object')return null;
     const text=(v,max=5000)=>typeof v==='string'&&v.trim()&&v.length<=max;
-    const examples=v=>Array.isArray(v)?v.filter(e=>text(e?.text)&&text(e?.translation)).slice(0,5).map(e=>({text:e.text,translation:e.translation})):[];
+    const examples=v=>Array.isArray(v)?v.filter(e=>text(e?.text)&&text(e?.translation)).slice(0,5).map(e=>({text:e.text,translation:e.translation,...(['en','ja'].includes(e.language)?{language:e.language}:{})})):[];
     const vocabulary=(Array.isArray(p.vocabulary)?p.vocabulary:[]).filter(v=>text(v?.term,300)&&text(v?.meaning)&&text(v?.pos,100)&&text(v?.reading,300)).slice(0,5).map(v=>({term:v.term,pos:v.pos,meaning:v.meaning,reading:v.reading,examples:examples(v.examples)}));
     const grammar=(Array.isArray(p.grammar)?p.grammar:[]).filter(g=>text(g?.point,500)&&text(g?.explanation)).slice(0,5).map(g=>({point:g.point,explanation:g.explanation,examples:examples(g.examples)}));
     if(!text(p.summary_zh)&&!vocabulary.length&&!grammar.length)return null;

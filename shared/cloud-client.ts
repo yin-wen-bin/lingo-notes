@@ -16,10 +16,13 @@ const sessionValid = (value: any): value is CloudSession => !!value && typeof va
  * never passwords, recovery token hashes, model keys or learning content.
  * start() is a single billable POST. A dropped stream must be recovered with records.get, never replayed automatically.
  * onEvent is awaited in stream order, including accepted before progress/complete. */
+export function cloudSessionKey(url: string) {
+  return `lingo-session:${url.replace(/\/$/, '')}`;
+}
 export function createCloudClient(options: Options) {
   const url = options.url.replace(/\/$/, '');
   const transport = options.fetch ?? globalThis.fetch.bind(globalThis);
-  const storageKey = `lingo-session:${url}`;
+  const storageKey = cloudSessionKey(url);
   const setupKey = `lingo-password-setup:${url}`;
   const attemptKey = `lingo-auth-attempt:${url}`;
   const memory = new Map<string, string>();

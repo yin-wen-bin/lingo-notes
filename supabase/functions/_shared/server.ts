@@ -1,9 +1,20 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { safeError, fail } from './core.mjs';
 
+function defaultSecretKey(value: string | undefined) {
+  try {
+    const entries = JSON.parse(value ?? '{}');
+    return typeof entries?.default === 'string' && entries.default.startsWith('sb_secret_')
+      ? entries.default : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function database() {
   const url=Deno.env.get('SUPABASE_URL');
-  const key=Deno.env.get('SUPABASE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const key=Deno.env.get('SUPABASE_SECRET_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ||
+    defaultSecretKey(Deno.env.get('SUPABASE_SECRET_KEYS'));
   if (!url || !key) fail('SERVER_NOT_CONFIGURED');
   return createClient(url!,key!,{auth:{persistSession:false,autoRefreshToken:false}});
 }

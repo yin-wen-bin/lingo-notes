@@ -19,7 +19,7 @@ export type Lesson = {
   vocabulary?: Array<{term: string; pos?: string; reading?: string; meaning: string; examples: Example[]}>;
   grammar?: Array<{point: string; reading?: string; explanation: string; examples: Example[]}>;
 };
-export type Example = { text: string; translation: string };
+export type Example = { text: string; translation: string; language?: 'en' | 'ja' };
 export type ReviewPointState = {
   point_key: string;
   kind: 'vocabulary' | 'grammar';
