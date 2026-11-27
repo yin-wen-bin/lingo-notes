@@ -233,7 +233,7 @@ export async function runSelfHost(options, platform, store, stage, { root = ROOT
       if (published?.installationId !== state.installationId || published.build !== state.pwaBuild ||
           !await verifyPublishedFiles(project.pwaUrl, resolve(store.buildDirectory(), 'pwa'))) fail('PWA_SETUP_TARGET_NOT_VERIFIED');
       const owner = inspectOwner(platform, options.email, state.installationId);
-      if (!owner || owner.has_password) fail('FIRST_TIME_SETUP_NOT_AVAILABLE');
+      if (!owner) fail('DEPLOYED_OWNER_MISSING');
       displaySecret(await platform.setupLink(options.email, project.pwaUrl));
       if (!state.setupLinkIssued) { state.setupLinkIssued = true; store.save(state); }
       return { status: 'setup-link-shown', ...baseSummary(state, project) };
@@ -311,7 +311,8 @@ export async function runSelfHost(options, platform, store, stage, { root = ROOT
     if (created && (settings.review_enabled || settings.push_enabled)) fail('NEW_OWNER_REVIEW_DEFAULTS_NOT_VERIFIED');
     state.ready = true;
     store.save(state);
-    if (interactive && !owner.has_password && !state.setupLinkIssued) {
+    // Supabase may store a generated password hash before the invited owner sets a password.
+    if (interactive && !state.setupLinkIssued) {
       displaySecret(await platform.setupLink(options.email, project.pwaUrl));
       state.setupLinkIssued = true;
       store.save(state);
@@ -319,7 +320,7 @@ export async function runSelfHost(options, platform, store, stage, { root = ROOT
     return {
       status: 'ready', ...baseSummary(state, project), extension_id: extensionId,
       extension_directory: build.info.extension_path, extension_zip: build.zipPath, extension_zip_sha256: build.hash,
-      schedule: cron, setup_link_available: !owner.has_password
+      schedule: cron, setup_link_available: !state.setupLinkIssued
     };
   } catch (error) { throw new Error(current + ': ' + errorCode(error)); }
   finally { if (release) release(); }

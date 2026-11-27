@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
@@ -157,6 +157,72 @@ test('dry run consults both providers without locking, allocating keys, or provi
   assert.equal(result.status, 'dry-run');
   assert.equal(result.project, REF);
   assert.equal(result.existing_installation, false);
+});
+
+test('a verified invited owner can request setup even when Auth generated a password hash', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'lingo-owner-setup-test-'));
+  assert.equal(dirname(dir), resolve(tmpdir()));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const state = {
+    ...newState(platformOptions, ACCOUNT), ready: true,
+    pwaBuild: 'a'.repeat(64), pagesId: 'pages-setup-fixture', pwaUrl
+  };
+  const routes = new Map([
+    ['/', ['index.html', '<script src="/assets/index.js"></script>']],
+    ['/assets/index.js', ['assets/index.js', '/* fixture */']],
+    ['/sw.js', ['sw.js', '/* fixture */']],
+    ['/manifest.webmanifest', ['manifest.webmanifest', '{}']],
+    ['/privacy', ['privacy.html', 'Privacy']],
+    ['/support', ['support.html', 'Support']]
+  ]);
+  for (const [file, body] of routes.values()) {
+    const path = join(dir, 'pwa', file);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, body);
+  }
+  t.mock.method(globalThis, 'fetch', async location => {
+    const url = new URL(location);
+    assert.equal(url.origin, pwaUrl);
+    if (url.pathname === '/lingo-instance.json') {
+      return Response.json({ installationId: state.installationId, build: state.pwaBuild });
+    }
+    return new Response(routes.get(url.pathname)?.[1] ?? null, { status: routes.has(url.pathname) ? 200 : 404 });
+  });
+  let owned = true;
+  let links = 0;
+  const link = pwaUrl + '/#token_hash=synthetic-setup-token';
+  const fixture = {
+    account: ACCOUNT,
+    query(sql) {
+      if (/to_regclass/.test(sql)) return [{ managed: true, populated: true, ledger: true }];
+      if (/select installation_id/.test(sql)) return [markerFor(state)];
+      assert.match(sql, /from auth\.users/);
+      assert.doesNotMatch(sql, /encrypted_password/);
+      return [{ id: 'setup-fixture', owned, has_password: true }];
+    },
+    functions: () => [], secrets: () => [],
+    getProject: async () => ({ id: state.pagesId, pwaUrl, installationId: state.installationId, deployed: true }),
+    async setupLink(owner, site) {
+      assert.equal(owner, email);
+      assert.equal(site, pwaUrl);
+      links++;
+      return link;
+    }
+  };
+  const store = { read: () => state, lock: () => () => {}, buildDirectory: () => dir, save: () => {} };
+  const options = { ...platformOptions, setupLink: true };
+  const output = [];
+  await assert.rejects(runSelfHost(options, fixture, store, dir), /REQUIRES_INTERACTIVE_TERMINAL/);
+  owned = false;
+  const interactive = { interactive: true, displaySecret: value => output.push(value) };
+  await assert.rejects(runSelfHost(options, fixture, store, dir, interactive), /OWNER_ACCOUNT_NOT_VERIFIED/);
+  owned = true;
+  const result = await runSelfHost(options, fixture, store, dir, interactive);
+  assert.equal(links, 1);
+  assert.deepEqual(output, [link]);
+  assert.equal(result.status, 'setup-link-shown');
+  assert.equal(state.setupLinkIssued, true);
+  assert.doesNotMatch(JSON.stringify(result), /token_hash/);
 });
 
 test('a lost Pages creation response resumes matching ownership without creating another project', async () => {

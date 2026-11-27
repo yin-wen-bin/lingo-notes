@@ -115,10 +115,9 @@ export function applyMigrations(platform, root) {
 
 export function inspectOwner(platform, email, installationId) {
   const rows = platform.query(`select id,
-    (raw_app_meta_data->>'lingo_self_host_instance'=${quote(installationId)}) as owned,
-    (nullif(encrypted_password,'') is not null) as has_password
+    (raw_app_meta_data->>'lingo_self_host_instance'=${quote(installationId)}) as owned
     from auth.users where lower(email)=${quote(email)};`);
-  if (rows.length > 1 || rows.length === 1 && (rows[0].owned !== true || typeof rows[0].has_password !== 'boolean')) fail('OWNER_ACCOUNT_NOT_VERIFIED');
+  if (rows.length > 1 || rows.length === 1 && rows[0].owned !== true) fail('OWNER_ACCOUNT_NOT_VERIFIED');
   return rows[0] ?? null;
 }
 
